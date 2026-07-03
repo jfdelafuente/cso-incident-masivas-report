@@ -18,7 +18,7 @@ fi
 source venv/bin/activate
 
 # Install dependencies if needed
-pip install -q -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
 
 # Start server
 echo ""

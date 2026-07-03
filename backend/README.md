@@ -20,7 +20,7 @@ source venv/bin/activate
 ### 2. Instalar dependencias
 
 ```bash
-pip install -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
 ```
 
 ## 🏃 Ejecutar el servidor
@@ -99,7 +99,7 @@ En producción, ajusta `allow_origins` en `main.py`.
 
 **Error: "ModuleNotFoundError"**
 - Verifica que el entorno virtual está activado
-- Ejecuta: `pip install -r requirements.txt`
+- Ejecuta: `pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt`
 
 **Error: "Address already in use"**
 - El puerto 8000 está ocupado

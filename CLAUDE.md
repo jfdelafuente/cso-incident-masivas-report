@@ -20,7 +20,7 @@ Backend (FastAPI + SQLite):
 ```bash
 cd backend
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
 python main.py                                      # or: uvicorn main:app --reload --port 8000
 ```
 Serves on http://localhost:8000; interactive docs at `/docs`. The frontend's `ApiClient` (`app/api-client.js`) defaults to `http://localhost:8000` but reads an override from `localStorage['api_base_url']` — useful when pointing a local frontend at the staging backend or vice versa.

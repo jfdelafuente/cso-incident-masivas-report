@@ -60,7 +60,7 @@ source venv/bin/activate
 
 # Instalar dependencias
 log_info "Instalando dependencias..."
-pip install -q -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
 log_success "Dependencias instaladas"
 
 # 3. Crear base de datos

@@ -17,7 +17,7 @@ REM Activate venv
 call venv\Scripts\activate.bat
 
 REM Install dependencies if needed
-pip install -q -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
 
 REM Start server
 echo.

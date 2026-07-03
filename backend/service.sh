@@ -73,7 +73,7 @@ ensure_venv() {
         python3 -m venv venv
     fi
     log_info "Instalando/actualizando dependencias..."
-    "$SCRIPT_DIR/venv/bin/pip" install -q -r requirements.txt
+    "$SCRIPT_DIR/venv/bin/pip" install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
 }
 
 start() {

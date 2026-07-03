@@ -71,7 +71,7 @@ python3 -m venv venv
 source venv/bin/activate  # En Windows: venv\Scripts\activate
 
 # Instalar dependencias
-pip install -r requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
 ```
 
 ### 4. Configurar la base de datos
@@ -300,7 +300,7 @@ git pull origin main
 
 # Si hay cambios en requirements.txt:
 source backend/venv/bin/activate
-pip install -r backend/requirements.txt
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r backend/requirements.txt
 
 # Reiniciar API
 cd backend && ./service.sh restart
