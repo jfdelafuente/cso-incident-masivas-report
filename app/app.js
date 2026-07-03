@@ -99,6 +99,66 @@
       this._ro = new ResizeObserver(this.fit);
       this._ro.observe(this.els.stage);
       window.addEventListener('beforeprint', this.fit);
+
+      // Setup resizable panel
+      this.setupResizePanel();
+    },
+
+    setupResizePanel() {
+      const editPanel = document.getElementById('editPanel');
+      const resizeHandle = document.getElementById('resizeHandle');
+      if (!editPanel || !resizeHandle) return;
+
+      const STORAGE_KEY_WIDTH = 'mo_panel_width';
+      const MIN_WIDTH = 300;
+      const MAX_WIDTH = window.innerWidth * 0.7;
+      const DEFAULT_WIDTH = 430;
+
+      // Load saved width
+      let savedWidth = null;
+      try { savedWidth = parseInt(localStorage.getItem(STORAGE_KEY_WIDTH)); } catch (e) {}
+      if (savedWidth && savedWidth >= MIN_WIDTH && savedWidth <= MAX_WIDTH) {
+        editPanel.style.width = savedWidth + 'px';
+      }
+
+      let isResizing = false;
+      let startX = 0;
+      let startWidth = 0;
+
+      resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = editPanel.offsetWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const diff = e.clientX - startX;
+        let newWidth = startWidth + diff;
+        newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+        editPanel.style.width = newWidth + 'px';
+        resizeHandle.style.background = '#5C5852';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+        resizeHandle.style.background = '#3C3934';
+        try { localStorage.setItem(STORAGE_KEY_WIDTH, editPanel.offsetWidth); } catch (e) {}
+      });
+
+      // Hover effect
+      resizeHandle.addEventListener('mouseenter', () => {
+        if (!isResizing) resizeHandle.style.background = '#5C5852';
+      });
+
+      resizeHandle.addEventListener('mouseleave', () => {
+        if (!isResizing) resizeHandle.style.background = '#3C3934';
+      });
     },
 
     // ---- persistence ----
