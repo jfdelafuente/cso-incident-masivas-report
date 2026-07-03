@@ -39,7 +39,7 @@ const ReportEditor = {
       document.getElementById('metaRange').value = report.range;
       document.getElementById('metaDept').value = report.dept;
 
-      // Load incidents
+      // Load incidents - override any localStorage data
       if (App && App.state) {
         App.state.meta = {
           year: report.year,
@@ -47,13 +47,21 @@ const ReportEditor = {
           range: report.range,
           dept: report.dept,
         };
-        App.state.incidents = report.incidents || [];
+        // Use report's incidents (even if empty), don't mix with localStorage
+        App.state.incidents = JSON.parse(JSON.stringify(report.incidents || []));
+        App.state.openIdx = 0;
         App.renderSidebarList();
         App.renderDeck();
         App.fit();
+
+        // Save to localStorage to ensure consistency between editor and backend
+        try {
+          localStorage.setItem('mo_inc_report_v1',
+            JSON.stringify({ meta: App.state.meta, incidents: App.state.incidents, openIdx: App.state.openIdx }));
+        } catch (e) {}
       }
 
-      console.log(`✓ Informe ${reportId} cargado`);
+      console.log(`✓ Informe ${reportId} cargado (${(report.incidents || []).length} incidencias)`);
     } catch (error) {
       console.error('Error cargando informe:', error);
       alert('Error al cargar el informe: ' + error.message);
