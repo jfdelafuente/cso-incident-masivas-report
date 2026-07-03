@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, ConfigDict
+from typing import List, Optional, Any
 from datetime import datetime
 
 class IncidentBase(BaseModel):
@@ -32,9 +32,11 @@ class ReportCreate(BaseModel):
     notes: Optional[str] = None
 
 class ReportUpdate(BaseModel):
-    incidents: Optional[List[IncidentBase]] = None
+    incidents: Optional[Any] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+
+    model_config = ConfigDict(extra='allow')
 
 class ReportResponse(BaseModel):
     id: str
