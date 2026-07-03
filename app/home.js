@@ -325,7 +325,7 @@ Solución: ${inc.solution || '—'}
         });
       });
 
-      prs.save({ fileName: `${reportId}_ReporteIncidencias.pptx` });
+      prs.writeFile({ fileName: `${reportId}_ReporteIncidencias.pptx` });
     } catch (error) {
       alert('Error al descargar PPT: ' + error.message);
     }
