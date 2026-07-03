@@ -82,6 +82,23 @@ header {
   background: #EFEDE9;
 }
 
+.btn-success {
+  background: #1D8754;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(29, 135, 84, 0.15);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #156641;
+  box-shadow: 0 4px 12px rgba(29, 135, 84, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-success:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(29, 135, 84, 0.15);
+}
+
 .btn-danger {
   background: #D43A2F;
   color: #fff;
@@ -181,7 +198,7 @@ header {
 
 .report-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px;
 }
 
@@ -192,8 +209,15 @@ header {
   width: 100%;
 }
 
+.report-actions .btn-success {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .report-actions .btn-danger {
-  grid-column: span 2;
+  grid-column: 1 / -1;
   padding: 8px 12px;
   font-size: 12px;
 }

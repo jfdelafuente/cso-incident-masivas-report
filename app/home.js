@@ -75,11 +75,11 @@ const HomePage = {
         </div>
 
         <div class="report-actions">
-          <a href="preview.html?report=${report.id}" class="btn btn-secondary btn-small">Ver</a>
           <a href="index.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
           <button class="btn btn-secondary btn-small" onclick="HomePage.openDuplicateModal('${report.id}')">Duplicar</button>
           <button class="btn btn-secondary btn-small" onclick="HomePage.downloadReport('${report.id}')">Descargar</button>
           <button class="btn btn-danger btn-small" onclick="HomePage.deleteReport('${report.id}')">Borrar</button>
+          <a href="preview.html?report=${report.id}" class="btn btn-success btn-small">👁 Ver Informe</a>
         </div>
       </div>
     `).join('');
