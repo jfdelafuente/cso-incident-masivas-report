@@ -46,10 +46,11 @@ Una vez que el servidor esté corriendo, abre tu navegador en:
 
 ### **http://localhost:8080**
 
-Deberías ver:
-- Panel editor a la izquierda
-- Vista en vivo del reporte a la derecha
-- 8 incidencias precargadas
+Esto carga `index.html`, la página de inicio con el listado de informes. **Necesita el backend corriendo** (ver `backend/README.md`) para poder listar/crear informes — si no, verás un aviso de "no se puede conectar al backend" y la lista vacía.
+
+Si solo quieres probar el editor de forma aislada, sin backend, con datos de ejemplo precargados (8 incidencias), entra directamente en:
+
+### **http://localhost:8080/editor.html**
 
 ---
 
@@ -63,9 +64,9 @@ Presiona **Ctrl+C** en la consola donde corre el servidor.
 
 - [ ] Script ejecutado correctamente
 - [ ] Servidor iniciado sin errores
-- [ ] Navegador abre en `http://localhost:8080`
-- [ ] La app carga y se ven los datos
-- [ ] Puedo editar incidencias
+- [ ] Navegador abre en `http://localhost:8080` y se ve el listado de informes (con el backend corriendo)
+- [ ] Puedo crear/editar un informe desde ahí
+- [ ] `http://localhost:8080/editor.html` funciona de forma standalone con datos de ejemplo, sin backend
 - [ ] Puedo exportar PPTX/PDF/JSON
 - [ ] Puedo importar CSV/JSON
 

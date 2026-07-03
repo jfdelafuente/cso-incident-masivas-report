@@ -14,7 +14,7 @@ Frontend (static files, no build step):
 ```bash
 cd app && python -m http.server 8080   # or start-local.sh / start-local.bat from repo root
 ```
-Open http://localhost:8080 (serves `home.html`/`index.html`). A VS Code launch config for this exists at `.claude/launch.json`.
+Open http://localhost:8080 (serves `index.html`, the dashboard — see Architecture below). A VS Code launch config for this exists at `.claude/launch.json`. Note: unlike the editor (`editor.html`), the dashboard has no offline/seeded fallback — if the backend isn't running you'll get "no se puede conectar al backend" alerts and an empty list, so start the backend too (see below) even for a quick frontend-only look.
 
 Backend (FastAPI + SQLite):
 ```bash
@@ -31,12 +31,12 @@ There is no automated test suite and no lint/format tooling in this repo — don
 
 **Two frontend surfaces sharing state through the DOM and localStorage, not modules:**
 
-- `home.html` + `home.js` (`HomePage` object) — dashboard: lists/creates/duplicates/deletes reports via `ApiClient`, imports/exports JSON/CSV. This is the only page that treats the backend as the source of truth.
-- `index.html` + `app.js` (`App`, an IIFE) + `editor.js` (`ReportEditor`) — the report editor/deck. This is two scripts cooperating on one page:
-  - `app.js` owns rendering, in-memory state, and PDF/PPTX export (via the `pptxgenjs` CDN bundle loaded in `index.html`). It persists to `localStorage['mo_inc_report_v1']` and can run **standalone** with no backend (seeded with demo data in `seed()`).
+- `index.html` + `home.js` (`HomePage` object) — the landing page / dashboard: lists/creates/duplicates/deletes reports via `ApiClient`, imports/exports JSON/CSV, links to `editor.html?report=<id>` and `preview.html?report=<id>`. This is the only page that treats the backend as the source of truth. (Renamed from `home.html` — Nginx's `index` directive and `try_files` fallback in `nginx.conf` already point at literal `index.html`, so nothing there needed to change, only the internal links in `home.js`/`preview.html`/`editor.html`.)
+- `editor.html` (renamed from `index.html`) + `app.js` (`App`, an IIFE) + `editor.js` (`ReportEditor`) — the report editor/deck. This is two scripts cooperating on one page:
+  - `app.js` owns rendering, in-memory state, and PDF/PPTX export (via the `pptxgenjs` CDN bundle loaded in `editor.html`). It persists to `localStorage['mo_inc_report_v1']` and can run **standalone** with no backend (seeded with demo data in `seed()`).
   - `editor.js` bridges that page to the backend: reads `?report=<id>` from the URL, loads/saves via `ApiClient`, and mutates `App.state` directly, then re-writes the same localStorage key so `app.js` stays in sync. It polls for `App` to exist (`setTimeout` retry loop) because there's no module system enforcing load order — if you add a new script here, replicate that pattern rather than assuming `app.js` has already run.
   - `?view` query param puts the editor in read-only mode (disables all inputs/buttons via `disableEditControls()`).
-- `preview.html` — standalone read-only slide viewer/export page, same `pptxgenjs` dependency.
+- `preview.html` — standalone read-only slide viewer/export page, same `pptxgenjs` dependency, links back to `index.html`.
 - `api-client.js` — thin fetch wrapper (`ApiClient`) used by `home.js` and `editor.js`. Not used by `app.js` directly. Its default `baseURL` is environment-sensitive: an absolute `http://localhost:8000` when the page itself is served from `localhost`/`127.0.0.1` (local dev, frontend and backend on different ports), otherwise `''` (relative), so requests go through `/api` on the *same origin* the page was loaded from and let Nginx's `/api` proxy reach the backend. Don't hardcode `http://localhost:8000` anywhere in the frontend — from a remote browser that resolves to the visitor's own machine, not the server.
 
 **Backend** (`backend/`): FastAPI app in `main.py`, SQLAlchemy models in `models.py`, Pydantic schemas in `schemas.py`, SQLite file `reports.db` (created automatically, gitignored). Report primary key is `"{year}-W{week:02d}"` (e.g. `2026-W26`), not an autoincrement id — creating a duplicate year/week returns 409. CORS is wide open (`allow_origins=["*"]`) for dev; tighten `main.py` before hardening. Health check is `GET /api/health` (not `/health` — this has bitten the deploy scripts before, see below).

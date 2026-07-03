@@ -101,7 +101,7 @@ body { background: #26241F; }
       <div class="preview-title" id="previewTitle">Cargando...</div>
       <div class="preview-subtitle" id="previewSubtitle"></div>
     </div>
-    <a href="home.html">← Volver a Inicio</a>
+    <a href="index.html">← Volver a Inicio</a>
   </div>
 
   <!-- Controls -->
@@ -138,7 +138,7 @@ const PreviewApp = {
 
     if (!reportId) {
       alert('No se especificó un informe');
-      window.location.href = 'home.html';
+      window.location.href = 'index.html';
       return;
     }
 
@@ -180,7 +180,7 @@ const PreviewApp = {
       document.addEventListener('keydown', (e) => this.handleKeyboard(e));
     } catch (error) {
       alert('Error al cargar el informe: ' + error.message);
-      window.location.href = 'home.html';
+      window.location.href = 'index.html';
     }
   },
 
@@ -259,7 +259,7 @@ const PreviewApp = {
       e.preventDefault();
       this.prevSlide();
     } else if (e.key === 'Escape') {
-      window.location.href = 'home.html';
+      window.location.href = 'index.html';
     }
   },
 };

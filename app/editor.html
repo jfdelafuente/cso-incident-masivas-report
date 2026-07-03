@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de reporte de incidencias — MASORANGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<link rel="stylesheet" href="styles.css">
+<style>
+.editor-header { background: #1a1815; padding: 12px 20px; border-bottom: 1px solid #3C3934; display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.editor-header a { color: #FF7900; text-decoration: none; cursor: pointer; font-weight: 600; }
+.editor-header a:hover { text-decoration: underline; }
+.editor-header span { color: #8A857C; }
+.report-status { padding: 4px 10px; background: #FF7900; color: #fff; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div style="display:flex; height:100vh; width:100vw; overflow:hidden; background:#26241F; color:#0C0B09; flex-direction:column;">
+
+  <!-- Navigation Bar -->
+  <div class="editor-header">
+    <a href="index.html">← Volver a Inicio</a>
+    <span id="reportTitle">Nuevo informe</span>
+    <select id="reportStatusSelect" style="padding:4px 8px; border-radius:4px; border:none; font-size:11px; font-weight:600; text-transform:uppercase; cursor:pointer; display:none;" onchange="ReportEditor.updateStatus(this.value)">
+      <option value="draft">Draft</option>
+      <option value="reviewed">Reviewed</option>
+      <option value="published">Published</option>
+    </select>
+  </div>
+
+  <div style="display:flex; flex:1; overflow:hidden;">
+
+  <aside id="editPanel" class="mo-chrome mo-scroll" style="width:430px; flex:none; height:100%; overflow-y:auto; background:#FFFFFF; border-right:1px solid #DEDAD3; display:flex; flex-direction:column;">
+
+    <div style="position:sticky; top:0; z-index:5; background:#000000; color:#fff; padding:18px 20px; display:flex; align-items:center; gap:13px;">
+      <svg viewBox="0 0 1353.9 616.08" style="height:26px; width:auto; flex:none;"><path d="M244.59 8.3h110.29v244.57H244.59zM0 252.87h244.57v110.29H0zm354.89 0h244.57v110.29H354.89zm-.01 110.9H244.59v244.57h110.29z" fill="#ff7900"></path><path d="M1246.6 252.85c-24.12-93.64-108.5-160.6-209.87-160.6s-187.88 66.96-212.37 160.6H717.75C743.59 105.59 873.45 0 1035.85 0s292.12 106.19 318.05 252.85zm-209.87 270.98c100.07 0 184.81-67.47 209.45-160.69h107.48c-26.58 146.1-155.96 252.94-317.77 252.94S744.7 509.29 718.12 363.14h106.74c25.2 93.22 111.79 160.69 211.87 160.69" fill="#ffffff" fill-rule="evenodd"></path></svg>
+      <div style="line-height:1.2;">
+        <div style="font-size:14px; font-weight:700; letter-spacing:-0.01em;">Generador de reporte</div>
+        <div style="font-size:11px; color:#B8B2A9; letter-spacing:0.02em;">Incidencias IT + RED · semanal</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 20px; border-bottom:1px solid #EFEDE9; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <button class="mo-btn" id="btnImport" style="grid-column:span 2; display:flex; align-items:center; justify-content:center; gap:7px; padding:9px; border:1px solid #DEDAD3; border-radius:7px; background:#F7F6F4; font-size:12px; font-weight:600; color:#26241F; cursor:pointer;">Importar datos (JSON / CSV)</button>
+      <button class="mo-btn" id="btnTemplate" style="grid-column:span 2; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px; border:1px dashed #B8B2A9; border-radius:7px; background:#fff; font-size:11px; font-weight:600; color:#5C5852; cursor:pointer;">↓ Descargar plantilla CSV</button>
+      <button class="mo-btn" id="btnExportJSON" style="padding:8px; border:1px solid #DEDAD3; border-radius:7px; background:#fff; font-size:11.5px; font-weight:600; color:#26241F; cursor:pointer;">Guardar JSON</button>
+      <button class="mo-btn" id="btnExportPDF" style="padding:8px; border:1px solid #DEDAD3; border-radius:7px; background:#fff; font-size:11.5px; font-weight:600; color:#26241F; cursor:pointer;">PDF</button>
+      <button class="mo-btn" id="btnExportPPTX" style="grid-column:span 2; padding:9px; border:none; border-radius:7px; background:#FF7900; font-size:12px; font-weight:700; color:#fff; cursor:pointer;">Descargar PowerPoint (.pptx)</button>
+      <input type="file" accept=".json,.csv" id="fileInput" style="display:none;">
+      <datalist id="mo-cat-list"><option value="Indisponibilidad"></option><option value="Degradación"></option><option value="Pérdida de servicio FTTH"></option><option value="Pérdida de servicio móvil"></option></datalist>
+    </div>
+
+    <div style="padding:14px 20px; border-bottom:1px solid #EFEDE9; display:flex; flex-direction:column; gap:10px;">
+      <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C;">Semana del reporte</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <label style="display:block;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#8A857C; display:block; margin-bottom:3px;">Año</span><input id="metaYear" data-k="year" style="width:100%; padding:7px 9px; border:1px solid #DEDAD3; border-radius:6px; font-size:12px;"></label>
+        <label style="display:block;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#8A857C; display:block; margin-bottom:3px;">Semana</span><input id="metaWeek" data-k="week" style="width:100%; padding:7px 9px; border:1px solid #DEDAD3; border-radius:6px; font-size:12px;"></label>
+      </div>
+      <label style="display:block;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#8A857C; display:block; margin-bottom:3px;">Rango de fechas</span><input id="metaRange" data-k="range" style="width:100%; padding:7px 9px; border:1px solid #DEDAD3; border-radius:6px; font-size:12px;"></label>
+      <label style="display:block;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#8A857C; display:block; margin-bottom:3px;">Departamento</span><input id="metaDept" data-k="dept" style="width:100%; padding:7px 9px; border:1px solid #DEDAD3; border-radius:6px; font-size:12px;"></label>
+    </div>
+
+    <div style="padding:14px 20px 6px; display:flex; align-items:center; justify-content:space-between;">
+      <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C;">Incidencias · <span id="incCount">0</span></div>
+      <button class="mo-btn" id="btnAdd" style="padding:6px 11px; border:none; border-radius:6px; background:#000; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">+ Añadir</button>
+    </div>
+
+    <div id="incidentsList" style="padding:6px 16px 30px; display:flex; flex-direction:column; gap:9px;"></div>
+  </aside>
+
+  <div id="resizeHandle" style="width:8px; height:100vh; background:#3C3934; cursor:col-resize; flex:none; transition:background 0.2s; user-select:none;" title="Arrastra para redimensionar"></div>
+
+  <main class="mo-chrome mo-stage mo-scroll" id="stage" style="flex:1; overflow:auto; background:#26241F; padding:28px;">
+    <div class="mo-deck" id="deck" style="display:flex; flex-direction:column; align-items:center; gap:22px; transform-origin:top center; width:1280px; margin:0 auto;"></div>
+  </main>
+
+  </div>
+</div>
+
+<script src="api-client.js"></script>
+<script src="app.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

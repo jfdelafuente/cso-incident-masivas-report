@@ -109,7 +109,7 @@ const HomePage = {
         </div>
 
         <div class="report-actions">
-          <a href="index.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
+          <a href="editor.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
           <button class="btn btn-secondary btn-small" onclick="HomePage.openDuplicateModal('${report.id}')">Duplicar</button>
           <button class="btn btn-secondary btn-small" onclick="HomePage.downloadPDF('${report.id}')">PDF</button>
           <button class="btn btn-secondary btn-small" onclick="HomePage.downloadPPTX('${report.id}')">PPT</button>

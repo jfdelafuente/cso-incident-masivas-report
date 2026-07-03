@@ -56,7 +56,11 @@ Nginx corre desde una instalación propia en `/infocodes/nginx` (no la del paque
 
 ## 🧪 Checklist de validación
 
-Accede a: **http://infocodes.si.orange.es:8081/reportes-incidencias**
+**Dashboard** — Accede a: **http://infocodes.si.orange.es:8081/reportes-incidencias** (sirve `index.html`)
+- [ ] Carga la página sin errores y sin el aviso de "no se puede conectar al backend"
+- [ ] Se lista al menos un informe (o aparece el estado vacío si no hay ninguno todavía)
+
+**Editor con datos de ejemplo** (standalone, sin backend, para validar el diseño) — Accede a: **http://infocodes.si.orange.es:8081/reportes-incidencias/editor.html**
 
 ### ✅ Funcionalidad básica
 - [ ] Carga la página sin errores

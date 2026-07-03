@@ -19,8 +19,8 @@ Guía completa para desplegar la aplicación "Automatización de reportes semana
 └─────────────────────────────────────────────────┘
          ↓                            ↓
    [app/]                    [backend/main.py]
-   - index.html              - SQLAlchemy ORM
-   - home.html               - SQLite DB
+   - index.html (home)       - SQLAlchemy ORM
+   - editor.html             - SQLite DB
    - preview.html            - CORS enabled
    - styles.css
 ```
@@ -138,7 +138,7 @@ ps -ef | grep '[n]ginx: master process'
 
 ```bash
 # Accede a: http://10.132.68.85:8081/reportes-incidencias
-# Debe cargar home.html sin errores
+# Debe cargar index.html (la página de inicio con el listado de informes) sin errores
 
 # Verificar API
 curl http://10.132.68.85:8081/api/reports
@@ -158,7 +158,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 
 ### Frontend
 - [ ] Accede a http://10.132.68.85:8081/reportes-incidencias
-- [ ] Carga home.html correctamente
+- [ ] Carga index.html (listado de informes) correctamente
 - [ ] Los estilos se ven bien (colores MASORANGE)
 - [ ] Las imágenes/logos cargan
 
