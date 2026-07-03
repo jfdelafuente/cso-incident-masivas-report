@@ -2,54 +2,54 @@
 
 ## 📋 Instrucciones de despliegue
 
-### Paso 1: Preparar los archivos en tu local
+El repositorio se despliega en `/infocodes/cso-incident-masivas-report` mediante [`deploy.sh`](deploy.sh), que clona/actualiza el código desde git, instala dependencias, inicializa la BD, aplica `nginx.conf` y (re)inicia el backend. No hace falta empaquetar ni copiar un `.tar.gz`.
 
-Los archivos ya están listos:
-- `reportes-incidencias-app.tar.gz` — aplicación comprimida
-- `nginx.conf` — configuración Nginx actualizada
-- `deploy.sh` — script automatizado de despliegue
-
-### Paso 2: Copiar archivos al servidor
-
-```bash
-# Desde tu máquina local, copia los archivos al servidor
-scp reportes-incidencias-app.tar.gz <usuario>@10.132.68.85:/tmp/
-scp deploy.sh <usuario>@10.132.68.85:/tmp/
-scp nginx.conf <usuario>@10.132.68.85:/tmp/
-```
-
-### Paso 3: Conectar por SSH y ejecutar despliegue
+### Paso 1: Primer acceso al servidor (solo la primera vez)
 
 ```bash
 ssh <usuario>@10.132.68.85
-
-# Una vez dentro del servidor, ejecuta:
-cd /tmp
-bash deploy.sh reportes-incidencias-app.tar.gz
+# Si el repo aún no existe en el servidor, deploy.sh lo clona automáticamente,
+# pero necesita el script en algún sitio para arrancar. La forma más simple
+# es clonar el repo directamente:
+git clone https://github.com/jfdelafuente/cso-incident-masivas-report.git /infocodes/cso-incident-masivas-report
 ```
 
-### Paso 4: Verificar Nginx (si no se actualiza automáticamente)
+### Paso 2: Ejecutar el despliegue
 
-Si el script no puede actualizar `nginx.conf` automáticamente:
+```bash
+cd /infocodes/cso-incident-masivas-report
+bash deploy.sh
+```
+
+En despliegues posteriores, `deploy.sh` ya hace `git pull` por sí mismo — basta con volver a ejecutar el mismo comando desde el repo existente.
+
+### Paso 3: Verificar Nginx (si el script no pudo actualizarlo automáticamente)
+
+Nginx corre desde una instalación propia en `/infocodes/nginx` (no la del paquete del sistema en `/etc/nginx`), con su configuración en `/infocodes/nginx/conf/nginx.conf`. Todo (Nginx, backend, despliegue) opera bajo el usuario `infocodes` (uid=2001), sin root ni systemd, así que estos comandos **no llevan `sudo`**. `deploy.sh` hace backup de la configuración antes de sobrescribirla y restaura ese backup si la validación falla. Si necesitas repetir el proceso a mano:
 
 1. **Respaldar la configuración actual:**
    ```bash
-   sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
+   cp /infocodes/nginx/conf/nginx.conf /infocodes/nginx/conf/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
    ```
 
-2. **Actualizar manualmente:** Añade este bloque dentro del servidor `server { ... }` (después de `/dashboards`):
+2. **Copiar la configuración del repo** (ya incluye los bloques `/static`, `/dashboards`, `/data` existentes junto con `/reportes-incidencias`):
+   ```bash
+   cp /infocodes/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
+   ```
+
+   El bloque relevante para esta app es:
    ```nginx
    location /reportes-incidencias {
-       alias /infocodes/reportes-incidencias-app;
+       alias /infocodes/cso-incident-masivas-report/app;
        index index.html index.htm;
        try_files $uri $uri/ /index.html;
    }
    ```
 
-3. **Validar y recargar:**
+3. **Validar y recargar** (sin systemd, se llama al binario directamente):
    ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
+   /infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
+   /infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
    ```
 
 ---
@@ -127,15 +127,15 @@ Accede a: **http://infocodes.si.orange.es:8081/reportes-incidencias**
 ## 🐛 Troubleshooting
 
 ### La página no carga o da 404
-- Verifica que el directorio `/infocodes/reportes-incidencias-app/` existe y contiene `index.html`
-- Revisa los logs de Nginx: `sudo tail -f /var/log/nginx/error.log`
+- Verifica que el directorio `/infocodes/cso-incident-masivas-report/app/` existe y contiene `index.html`
+- Revisa los logs de Nginx: `tail -f /infocodes/nginx/logs/error.log`
 - Confirma que la configuración de Nginx tiene `try_files $uri $uri/ /index.html;`
 
 ### Nginx no recarga correctamente
 ```bash
-sudo nginx -t          # Valida sintaxis
-sudo systemctl reload nginx  # Recarga
-sudo systemctl status nginx  # Verifica estado
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t         # Valida sintaxis
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload  # Recarga
+ps -ef | grep '[n]ginx: master process'                                    # Verifica estado
 ```
 
 ### Los datos se pierden al recargar la página

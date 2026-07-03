@@ -74,29 +74,28 @@ log_success "Base de datos lista"
 
 # 4. Actualizar Nginx
 log_info "Paso 4: Actualizar configuración Nginx"
-sudo cp "$DEPLOY_PATH/nginx.conf" /etc/nginx/nginx.conf
-sudo nginx -t
-sudo systemctl reload nginx
-log_success "Nginx configurado y recargado"
+NGINX_BIN="/infocodes/nginx/sbin/nginx"
+NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
+NGINX_BACKUP="$NGINX_CONF.backup.$(date +%Y%m%d_%H%M%S)"
+cp "$NGINX_CONF" "$NGINX_BACKUP"
+cp "$DEPLOY_PATH/nginx.conf" "$NGINX_CONF"
+if "$NGINX_BIN" -c "$NGINX_CONF" -t; then
+    "$NGINX_BIN" -c "$NGINX_CONF" -s reload
+    log_success "Nginx configurado y recargado"
+else
+    log_error "Configuración de Nginx inválida, restaurando backup"
+    cp "$NGINX_BACKUP" "$NGINX_CONF"
+    exit 1
+fi
 
 # 5. Iniciar/reiniciar backend
 log_info "Paso 5: Iniciar backend"
-
-# Detener proceso anterior si existe
-pkill -f "python3 main.py" || true
-sleep 1
-
-# Iniciar backend en background
 cd "$DEPLOY_PATH/backend"
-nohup python3 main.py > nohup.out 2>&1 &
-sleep 2
-
-# Verificar que está corriendo
-if curl -s http://localhost:$BACKEND_PORT/health > /dev/null; then
+chmod +x service.sh
+if BACKEND_PORT="$BACKEND_PORT" ./service.sh restart; then
     log_success "Backend corriendo en puerto $BACKEND_PORT"
 else
     log_error "Backend no responde en puerto $BACKEND_PORT"
-    cat nohup.out
     exit 1
 fi
 
@@ -125,10 +124,10 @@ echo "   URL: http://10.132.68.85:8081/reportes-incidencias"
 echo "   API: http://10.132.68.85:8081/api"
 echo ""
 echo "📊 Monitoreo:"
-echo "   Logs backend: tail -f $DEPLOY_PATH/backend/nohup.out"
-echo "   Logs nginx: tail -f /var/log/nginx/infocodes.access.log"
+echo "   Logs backend: tail -f $DEPLOY_PATH/backend/backend.log"
+echo "   Logs nginx: tail -f /infocodes/var/log/nginx/infocodes.access.log"
+echo "   Estado backend: $DEPLOY_PATH/backend/service.sh status"
 echo ""
 echo "✅ Estado:"
-ps aux | grep "python3 main.py" | grep -v grep && echo "   Backend: ✅ Corriendo" || echo "   Backend: ❌ No corriendo"
-curl -s http://localhost:$BACKEND_PORT/health && echo "   Health check: ✅ OK" || echo "   Health check: ❌ Fallo"
+(cd "$DEPLOY_PATH/backend" && ./service.sh status) || true
 echo ""

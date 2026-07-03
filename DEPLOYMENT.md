@@ -1,6 +1,10 @@
 # 📦 Despliegue a Staging - Automatización de Reportes Semanales
 
-Guía completa para desplegar la aplicación "Automatización de reportes semanales" al servidor staging en **10.132.68.85:8081**.
+Guía completa para desplegar la aplicación "Automatización de reportes semanales" al servidor staging en **10.132.68.85:8081** (`infocodes.si.orange.es`).
+
+> 💡 El script [`deploy.sh`](deploy.sh) automatiza todos los pasos de esta guía (clonar/actualizar, dependencias, BD, Nginx, backend). Para el flujo recomendado basado en `scp` + `deploy.sh`, ver [`STAGING_DEPLOYMENT.md`](STAGING_DEPLOYMENT.md). Esta guía cubre los mismos pasos de forma manual, útil para depurar un fallo puntual del script.
+
+**Ruta de despliegue en el servidor:** `/infocodes/cso-incident-masivas-report`
 
 ---
 
@@ -46,7 +50,7 @@ sqlite3 --version
 
 ```bash
 ssh usuario@10.132.68.85
-cd /opt  # o la ruta que prefieras
+cd /infocodes
 ```
 
 ### 2. Clonar el repositorio
@@ -82,77 +86,51 @@ ls -la reports.db
 
 ### 5. Iniciar el backend (en background)
 
-```bash
-# Opción A: Con nohup (simple)
-nohup python3 main.py &
+Todo corre bajo el usuario `infocodes` (uid=2001), sin acceso root ni a systemd, así que el backend se gestiona con [`service.sh`](backend/service.sh) en vez de una unidad systemd. El script mantiene un PID file, comprueba que el puerto no esté ocupado por otro proceso antes de arrancar, y espera activamente al healthcheck en vez de un `sleep` fijo:
 
-# Opción B: Con systemd (recomendado para producción)
-# Ver sección "Configurar como servicio systemd" abajo
+```bash
+chmod +x service.sh
+./service.sh start     # arranca (no hace nada si ya está corriendo)
+./service.sh status    # PID + healthcheck
+./service.sh restart   # para (si aplica) y vuelve a arrancar
+./service.sh stop      # para de forma ordenada (SIGTERM, luego SIGKILL si no responde)
 ```
+
+Logs en `backend.log`, PID en `backend.pid` (ambos ignorados por git).
 
 **Verificar que está corriendo:**
 ```bash
-curl http://localhost:8000/health
-# Debe responder: {"status":"ok"}
+curl http://localhost:8000/api/health
+# Debe responder: {"status":"ok","service":"Reportes de Incidencias API"}
 ```
 
 ### 6. Configurar Nginx
 
-**Actualizar `/etc/nginx/nginx.conf`:**
+El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
 
-```nginx
-http {
-    # ... configuración existente ...
+En este servidor, Nginx corre desde una instalación propia bajo `/infocodes/nginx`, con el binario en `/infocodes/nginx/sbin/nginx` y la configuración en `/infocodes/nginx/conf/nginx.conf`. Como todo el árbol `/infocodes` es propiedad del usuario `infocodes` (uid=2001) con el que se opera — sin root ni systemd —, estas operaciones **no llevan `sudo`**.
 
-    upstream fastapi_backend {
-        server localhost:8000;
-    }
-
-    server {
-        listen 8081;
-        server_name 10.132.68.85;
-
-        # Frontend - Reportes de incidencias
-        location /reportes-incidencias {
-            alias /opt/cso-incident-masivas-report/app;
-            index index.html;
-            try_files $uri $uri/ /index.html;
-
-            # Cache busting para archivos estáticos
-            location ~* \.(js|css|png|jpg|gif|svg)$ {
-                expires 1h;
-                add_header Cache-Control "public, immutable";
-            }
-        }
-
-        # Backend API
-        location /api {
-            proxy_pass http://fastapi_backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            
-            # Timeouts para uploads
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 60s;
-            proxy_read_timeout 60s;
-        }
-
-        # Redirigir root a reportes-incidencias
-        location / {
-            return 301 /reportes-incidencias/;
-        }
-    }
-}
-```
-
-**Validar y recargar Nginx:**
+**Hacer backup de la configuración actual y aplicar la del repo:**
 ```bash
-sudo nginx -t
-sudo systemctl reload nginx
-sudo systemctl status nginx
+cp /infocodes/nginx/conf/nginx.conf /infocodes/nginx/conf/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
+cp /infocodes/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
 ```
+
+Si la validación falla, restaura el backup antes de continuar:
+```bash
+cp /infocodes/nginx/conf/nginx.conf.backup.<timestamp> /infocodes/nginx/conf/nginx.conf
+```
+
+**Recargar Nginx (sin systemd, se envía la señal directamente al binario):**
+```bash
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
+
+# Verificar que el proceso master está vivo:
+ps -ef | grep '[n]ginx: master process'
+```
+
+> ⚠️ Si otra persona modificó `/infocodes/nginx/conf/nginx.conf` directamente en el servidor sin reflejarlo en el repo, sobrescribir con `nginx.conf` del repo perdería esos cambios. Revisa el diff (`diff /infocodes/nginx/conf/nginx.conf /infocodes/cso-incident-masivas-report/nginx.conf`) antes de copiar si no estás seguro.
 
 ### 7. Verificar el despliegue
 
@@ -166,44 +144,11 @@ curl http://10.132.68.85:8081/api/reports
 
 ---
 
-## 🔧 Configurar como servicio systemd (Producción)
+## 🔧 Supervisión del backend sin systemd
 
-Crear archivo `/etc/systemd/system/reportes-api.service`:
+El usuario `infocodes` no tiene acceso root, por lo que no es posible instalar una unidad systemd (`/etc/systemd/system/...`) para el backend. [`service.sh`](backend/service.sh) (sección 5) es el único mecanismo de gestión: PID file propio, arranque/parada ordenados y healthcheck con reintentos.
 
-```ini
-[Unit]
-Description=Reportes Incidencias API
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/cso-incident-masivas-report/backend
-Environment="PATH=/opt/cso-incident-masivas-report/backend/venv/bin"
-ExecStart=/opt/cso-incident-masivas-report/backend/venv/bin/python3 main.py
-
-# Reiniciar automáticamente si falla
-Restart=always
-RestartSec=10
-
-# Logs
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Activar servicio:**
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable reportes-api.service
-sudo systemctl start reportes-api.service
-sudo systemctl status reportes-api.service
-
-# Ver logs en tiempo real:
-sudo journalctl -u reportes-api.service -f
-```
+Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Restart=always` de systemd) sin depender de systemd, la opción habitual es un cron que llame a `service.sh status` cada pocos minutos y ejecute `service.sh start` si ha caído — puede añadirse cuando haga falta, pero no forma parte de este despliegue por ahora.
 
 ---
 
@@ -229,7 +174,7 @@ sudo journalctl -u reportes-api.service -f
 - [ ] **Status:** Puede cambiar estado draft/reviewed/published
 
 ### Base de datos
-- [ ] `ls -la /opt/cso-incident-masivas-report/backend/reports.db` existe
+- [ ] `ls -la /infocodes/cso-incident-masivas-report/backend/reports.db` existe
 - [ ] Puedes consultar: `sqlite3 reports.db "SELECT COUNT(*) FROM report;"`
 
 ---
@@ -240,14 +185,14 @@ sudo journalctl -u reportes-api.service -f
 
 ```bash
 # Verificar que el backend está corriendo
-ps aux | grep main.py
+cd /infocodes/cso-incident-masivas-report/backend && ./service.sh status
 
 # Verificar logs
-sudo tail -f /var/log/nginx/error.log
-sudo journalctl -u reportes-api.service -f
+tail -f /infocodes/nginx/logs/error.log
+tail -f /infocodes/cso-incident-masivas-report/backend/backend.log
 
-# Reiniciar el servicio
-sudo systemctl restart reportes-api.service
+# Reiniciar
+./service.sh restart
 ```
 
 ### CORS errors en navegador
@@ -263,10 +208,10 @@ curl -i -X OPTIONS http://10.132.68.85:8081/api/reports \
 
 ```bash
 # Reiniciar el servicio para liberar la BD
-sudo systemctl restart reportes-api.service
+cd /infocodes/cso-incident-masivas-report/backend && ./service.sh restart
 
 # O limpiar locks de SQLite:
-rm -f /opt/cso-incident-masivas-report/backend/reports.db-*
+rm -f /infocodes/cso-incident-masivas-report/backend/reports.db-*
 ```
 
 ### Nginx no actualiza cambios del frontend
@@ -276,7 +221,7 @@ rm -f /opt/cso-incident-masivas-report/backend/reports.db-*
 # O acceder con ?nocache=1
 
 # Forzar actualización de Nginx:
-sudo systemctl reload nginx
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
 ```
 
 ---
@@ -286,18 +231,18 @@ sudo systemctl reload nginx
 **Ver logs en tiempo real:**
 ```bash
 # Logs de Nginx
-sudo tail -f /var/log/nginx/access.log | grep reportes
+tail -f /infocodes/var/log/nginx/infocodes.access.log | grep reportes
 
 # Logs de la API
-sudo journalctl -u reportes-api.service -f
+tail -f /infocodes/cso-incident-masivas-report/backend/backend.log
 
 # Verificar procesos
-watch -n 1 "ps aux | grep -E 'python|nginx' | grep -v grep"
+watch -n 1 "cd /infocodes/cso-incident-masivas-report/backend && ./service.sh status"
 ```
 
 **Estadísticas de base de datos:**
 ```bash
-sqlite3 /opt/cso-incident-masivas-report/backend/reports.db <<EOF
+sqlite3 /infocodes/cso-incident-masivas-report/backend/reports.db <<EOF
 SELECT 'Reportes' as tabla, COUNT(*) as cantidad FROM report;
 SELECT 'Usuarios' as tabla, COUNT(*) as cantidad FROM report WHERE createdBy IS NOT NULL;
 .tables
@@ -314,8 +259,8 @@ EOF
 ```nginx
 server {
     listen 8081 ssl;
-    ssl_certificate /etc/nginx/certs/cert.pem;
-    ssl_certificate_key /etc/nginx/certs/key.pem;
+    ssl_certificate /infocodes/nginx/certs/cert.pem;
+    ssl_certificate_key /infocodes/nginx/certs/key.pem;
     
     # ... resto de configuración
 }
@@ -350,7 +295,7 @@ location /api {
 Para actualizar el código:
 
 ```bash
-cd /opt/cso-incident-masivas-report
+cd /infocodes/cso-incident-masivas-report
 git pull origin main
 
 # Si hay cambios en requirements.txt:
@@ -358,16 +303,19 @@ source backend/venv/bin/activate
 pip install -r backend/requirements.txt
 
 # Reiniciar API
-sudo systemctl restart reportes-api.service
+cd backend && ./service.sh restart
 ```
+
+> Basta con volver a ejecutar `bash deploy.sh` desde el repo — hace `git pull`, reinstala dependencias, actualiza Nginx y reinicia el backend vía `service.sh` automáticamente.
 
 ---
 
 ## 📞 Soporte
 
 **Logs útiles:**
-- Nginx: `/var/log/nginx/error.log`
-- API: `sudo journalctl -u reportes-api.service`
+- Nginx (error): `/infocodes/nginx/logs/error.log`
+- Nginx (acceso): `/infocodes/var/log/nginx/infocodes.access.log`
+- API: `backend/backend.log`
 - Consola navegador: F12 → Console
 
 **Comandos de utilidad:**
@@ -375,14 +323,17 @@ sudo systemctl restart reportes-api.service
 # Verificar puertos en uso
 lsof -i :8081 -i :8000
 
-# Matar proceso por puerto
+# Detener el backend de forma ordenada (preferido sobre matar por puerto)
+cd /infocodes/cso-incident-masivas-report/backend && ./service.sh stop
+
+# Matar proceso por puerto (último recurso, si service.sh no puede pararlo)
 fuser -k 8000/tcp
 
 # Listar procesos Python
 ps aux | grep python
 
 # Ver espacio en disco
-df -h /opt
+df -h /infocodes
 ```
 
 ---

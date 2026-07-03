@@ -25,3 +25,6 @@ reports.db
 .DS_Store
 *.sqlite
 *.sqlite3
+backend.log
+backend.pid
+nohup.out
