@@ -33,17 +33,19 @@ const ReportEditor = {
       this.currentReportId = reportId;
 
       // Update title and status
-      document.getElementById('reportTitle').textContent = reportId;
-      const statusBadge = document.getElementById('reportStatusBadge');
-      statusBadge.textContent = report.status;
-      statusBadge.style.display = 'block';
-      statusBadge.className = `report-status status-${report.status}`;
+      const reportTitle = document.getElementById('reportTitle');
+      if (reportTitle) reportTitle.textContent = reportId;
 
       // Load metadata
-      document.getElementById('metaYear').value = report.year;
-      document.getElementById('metaWeek').value = report.week;
-      document.getElementById('metaRange').value = report.range;
-      document.getElementById('metaDept').value = report.dept;
+      const metaYear = document.getElementById('metaYear');
+      const metaWeek = document.getElementById('metaWeek');
+      const metaRange = document.getElementById('metaRange');
+      const metaDept = document.getElementById('metaDept');
+
+      if (metaYear) metaYear.value = report.year;
+      if (metaWeek) metaWeek.value = report.week;
+      if (metaRange) metaRange.value = report.range;
+      if (metaDept) metaDept.value = report.dept;
 
       // Load status selector
       const statusSelect = document.getElementById('reportStatusSelect');
@@ -146,10 +148,14 @@ const ReportEditor = {
         url.searchParams.set('report', created.id);
         window.history.replaceState({}, '', url);
 
-        document.getElementById('reportTitle').textContent = created.id;
+        const reportTitle = document.getElementById('reportTitle');
+        if (reportTitle) reportTitle.textContent = created.id;
+
         const statusSelect = document.getElementById('reportStatusSelect');
-        statusSelect.value = 'draft';
-        statusSelect.style.display = 'block';
+        if (statusSelect) {
+          statusSelect.value = 'draft';
+          statusSelect.style.display = 'block';
+        }
 
         alert('✓ Informe creado exitosamente');
         this.isDirty = false;
@@ -176,8 +182,10 @@ const ReportEditor = {
       alert('Error al cambiar estado: ' + error.message);
       // Recargar para restaurar el estado anterior
       const statusSelect = document.getElementById('reportStatusSelect');
-      const report = await ApiClient.getReport(this.currentReportId);
-      statusSelect.value = report.status;
+      if (statusSelect) {
+        const report = await ApiClient.getReport(this.currentReportId);
+        statusSelect.value = report.status;
+      }
     }
   },
 };
