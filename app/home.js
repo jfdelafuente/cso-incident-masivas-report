@@ -41,7 +41,8 @@ const HomePage = {
     // Check backend connection
     const health = await ApiClient.healthCheck();
     if (!health) {
-      alert('⚠️ No se puede conectar al backend. Asegúrate de que el servidor FastAPI está corriendo en http://localhost:8000');
+      const backendUrl = ApiClient.baseURL || `${window.location.origin}/api`;
+      alert(`⚠️ No se puede conectar al backend. Asegúrate de que el servidor FastAPI está accesible en ${backendUrl}`);
     }
 
     this.setupEventListeners();

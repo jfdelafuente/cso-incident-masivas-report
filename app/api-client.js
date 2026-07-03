@@ -1,8 +1,17 @@
 // API Client for backend communication
 // Configurable base URL for development and production
 
+// In local dev the frontend (:8080) and backend (:8000) are different origins,
+// so we need an absolute URL. Once deployed behind Nginx, /api on the same
+// origin is already proxied to the backend (see nginx.conf) — using an
+// absolute http://localhost:8000 there would point at the *browser's* own
+// machine instead of the server, so default to a relative path there.
+const DEFAULT_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://localhost:8000'
+  : '';
+
 const ApiClient = {
-  baseURL: localStorage.getItem('api_base_url') || 'http://localhost:8000',
+  baseURL: localStorage.getItem('api_base_url') || DEFAULT_API_BASE_URL,
 
   setBaseURL(url) {
     localStorage.setItem('api_base_url', url);
