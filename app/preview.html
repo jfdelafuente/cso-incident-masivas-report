@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vista Previa — MASORANGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<link rel="stylesheet" href="styles.css">
+<style>
+body { background: #26241F; }
+.preview-container { display: flex; flex-direction: column; height: 100vh; }
+.preview-header {
+  background: #000;
+  color: #fff;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #3C3934;
+}
+.preview-header a { color: #FF7900; text-decoration: none; font-weight: 600; }
+.preview-header a:hover { text-decoration: underline; }
+.preview-title { font-size: 16px; font-weight: 700; }
+.preview-subtitle { font-size: 12px; color: #B8B2A9; }
+.preview-controls {
+  background: #1a1815;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-bottom: 1px solid #3C3934;
+}
+.preview-counter { color: #8A857C; font-size: 13px; font-weight: 600; }
+.preview-buttons { display: flex; gap: 8px; }
+.preview-button {
+  padding: 8px 16px;
+  background: #FF7900;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.preview-button:hover { background: #E56D00; }
+.preview-button:disabled { background: #5C5852; cursor: not-allowed; }
+.preview-stage {
+  flex: 1;
+  overflow: auto;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  transform-origin: top center;
+  width: 1280px;
+}
+.slide-wrapper {
+  width: 100%;
+  display: none;
+}
+.slide-wrapper.active {
+  display: block;
+}
+.mo-slide {
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.keyboard-hint {
+  position: fixed;
+  bottom: 15px;
+  right: 15px;
+  font-size: 11px;
+  color: #8A857C;
+  background: rgba(0,0,0,0.5);
+  padding: 10px 15px;
+  border-radius: 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="preview-container">
+
+  <!-- Header -->
+  <div class="preview-header">
+    <div>
+      <div class="preview-title" id="previewTitle">Cargando...</div>
+      <div class="preview-subtitle" id="previewSubtitle"></div>
+    </div>
+    <a href="home.html">← Volver a Inicio</a>
+  </div>
+
+  <!-- Controls -->
+  <div class="preview-controls">
+    <span class="preview-counter"><span id="slideNum">0</span> / <span id="slideTotal">0</span></span>
+    <div class="preview-buttons">
+      <button class="preview-button" id="btnPrev" onclick="PreviewApp.prevSlide()">← Anterior</button>
+      <button class="preview-button" id="btnNext" onclick="PreviewApp.nextSlide()">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- Slides -->
+  <div class="preview-stage">
+    <div id="previewDeck" class="preview-deck"></div>
+  </div>
+
+  <div class="keyboard-hint">
+    ← → o Espacio para navegar | ESC para salir
+  </div>
+
+</div>
+
+<script src="api-client.js"></script>
+<script src="app.js"></script>
+<script>
+const PreviewApp = {
+  currentSlide: 0,
+  totalSlides: 0,
+  report: null,
+
+  async init() {
+    const params = new URLSearchParams(window.location.search);
+    const reportId = params.get('report');
+
+    if (!reportId) {
+      alert('No se especificó un informe');
+      window.location.href = 'home.html';
+      return;
+    }
+
+    try {
+      console.log('Cargando informe para vista previa:', reportId);
+      this.report = await ApiClient.getReport(reportId);
+
+      // Update header
+      document.getElementById('previewTitle').textContent = reportId;
+      document.getElementById('previewSubtitle').textContent =
+        `${this.report.dept} • Semana ${this.report.week} • ${this.report.range}`;
+
+      // Load data into App
+      if (App && App.state) {
+        App.state.meta = {
+          year: this.report.year,
+          week: this.report.week,
+          range: this.report.range,
+          dept: this.report.dept,
+        };
+        App.state.incidents = JSON.parse(JSON.stringify(this.report.incidents || []));
+        App.state.openIdx = 0;
+
+        // Render the deck
+        App.renderSidebarList();
+        App.renderDeck();
+
+        // Get the slides HTML and display them
+        this.displaySlides();
+      }
+    } catch (error) {
+      alert('Error al cargar el informe: ' + error.message);
+      window.location.href = 'home.html';
+    }
+  },
+
+  displaySlides() {
+    const deckEl = document.getElementById('previewDeck');
+    if (!App || !App.els.deck) return;
+
+    // Get all slides from App's deck
+    const slides = App.els.deck.querySelectorAll('.mo-slide');
+    this.totalSlides = slides.length;
+
+    deckEl.innerHTML = '';
+    slides.forEach((slide, idx) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'slide-wrapper' + (idx === 0 ? ' active' : '');
+      wrapper.innerHTML = slide.outerHTML;
+      deckEl.appendChild(wrapper);
+    });
+
+    this.updateCounter();
+    this.updateButtonState();
+
+    // Setup keyboard navigation
+    document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+  },
+
+  updateCounter() {
+    document.getElementById('slideNum').textContent = this.currentSlide + 1;
+    document.getElementById('slideTotal').textContent = this.totalSlides;
+  },
+
+  updateButtonState() {
+    document.getElementById('btnPrev').disabled = this.currentSlide === 0;
+    document.getElementById('btnNext').disabled = this.currentSlide === this.totalSlides - 1;
+  },
+
+  nextSlide() {
+    if (this.currentSlide < this.totalSlides - 1) {
+      this.goToSlide(this.currentSlide + 1);
+    }
+  },
+
+  prevSlide() {
+    if (this.currentSlide > 0) {
+      this.goToSlide(this.currentSlide - 1);
+    }
+  },
+
+  goToSlide(idx) {
+    document.querySelectorAll('.slide-wrapper').forEach(el => {
+      el.classList.remove('active');
+    });
+    document.querySelectorAll('.slide-wrapper')[idx].classList.add('active');
+    this.currentSlide = idx;
+    this.updateCounter();
+    this.updateButtonState();
+
+    // Scroll to slide
+    document.querySelectorAll('.slide-wrapper')[idx].scrollIntoView({ behavior: 'smooth' });
+  },
+
+  handleKeyboard(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault();
+      this.nextSlide();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      this.prevSlide();
+    } else if (e.key === 'Escape') {
+      window.location.href = 'home.html';
+    }
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => PreviewApp.init(), 300);
+});
+</script>
+
+</body>
+</html>
