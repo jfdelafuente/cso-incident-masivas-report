@@ -71,7 +71,7 @@ const HomePage = {
         </div>
 
         <div class="report-actions">
-          <button class="btn btn-primary btn-small" onclick="HomePage.editReport('${report.id}')">Editar</button>
+          <a href="index.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
           <button class="btn btn-secondary btn-small" onclick="HomePage.openDuplicateModal('${report.id}')">Duplicar</button>
           <button class="btn btn-secondary btn-small" onclick="HomePage.downloadReport('${report.id}')">Descargar</button>
           <button class="btn btn-danger btn-small" onclick="HomePage.deleteReport('${report.id}')">Borrar</button>
@@ -136,21 +136,6 @@ const HomePage = {
     }
   },
 
-  editReport(reportId) {
-    const report = this.reports.find(r => r.id === reportId);
-    if (!report) return;
-
-    this.currentEditId = reportId;
-    document.getElementById('modalTitle').textContent = `Editar ${reportId}`;
-    document.getElementById('formYear').value = report.year;
-    document.getElementById('formWeek').value = report.week;
-    document.getElementById('formRange').value = report.range;
-    document.getElementById('formDept').value = report.dept;
-    document.getElementById('formStatus').value = report.status;
-    document.getElementById('formNotes').value = report.notes || '';
-
-    document.getElementById('reportModal').classList.add('active');
-  },
 
   openDuplicateModal(reportId) {
     const report = this.reports.find(r => r.id === reportId);

@@ -172,6 +172,7 @@
     },
     save() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta: this.state.meta, incidents: this.state.incidents, openIdx: this.state.openIdx })); } catch (e) {}
+      document.dispatchEvent(new Event('incident-changed'));
     },
 
     // ---- derived values ----
