@@ -57,19 +57,23 @@ body { background: #26241F; }
   justify-content: center;
 }
 #deck {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 22px;
-  transform-origin: top center;
-  width: 1280px;
+  position: relative !important;
+  width: 1280px !important;
+  height: 720px !important;
+  display: block !important;
+  gap: 0 !important;
 }
 .mo-slide {
-  display: none;
-  width: 100%;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease !important;
 }
 .mo-slide.active {
-  display: block;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 .mo-slide {
   width: 100%;
@@ -194,15 +198,21 @@ const PreviewApp = {
   },
 
   displaySlides() {
-    if (!App || !App.els.deck) return;
+    if (!App || !App.els.deck) {
+      console.error('[Preview] No App o App.els.deck');
+      return;
+    }
 
     // Count slides rendered by App
     const slides = App.els.deck.querySelectorAll('.mo-slide');
     this.totalSlides = slides.length;
+    console.log('[Preview] Slides found:', this.totalSlides);
 
-    // Show first slide
+    // Show first slide (with small delay to ensure CSS is applied)
     if (this.totalSlides > 0) {
-      this.goToSlide(0);
+      setTimeout(() => this.goToSlide(0), 100);
+    } else {
+      console.error('[Preview] No slides found in deck');
     }
   },
 
