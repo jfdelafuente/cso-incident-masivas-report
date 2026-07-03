@@ -47,8 +47,10 @@ const ReportEditor = {
 
       // Load status selector
       const statusSelect = document.getElementById('reportStatusSelect');
-      statusSelect.value = report.status;
-      statusSelect.style.display = 'block';
+      if (statusSelect) {
+        statusSelect.value = report.status;
+        statusSelect.style.display = 'block';
+      }
 
       // Load incidents - override any localStorage data
       if (App && App.state) {
