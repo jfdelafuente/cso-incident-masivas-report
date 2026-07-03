@@ -1,6 +1,8 @@
 // Editor integration with backend
 // Handles loading, saving, and auto-saving of reports
 
+console.log('[editor.js] Script loaded');
+
 const ReportEditor = {
   currentReportId: null,
   autoSaveTimer: null,
@@ -157,14 +159,19 @@ const ReportEditor = {
 
 // Initialize when App is ready
 function initEditor() {
+  console.log('[initEditor] Checking if App is defined:', typeof App);
   if (typeof App === 'undefined') {
     // App not ready yet, retry after a short delay
+    console.log('[initEditor] App not ready yet, retrying...');
     setTimeout(initEditor, 100);
     return;
   }
+  console.log('[initEditor] App is ready, calling ReportEditor.init()');
   ReportEditor.init();
 }
 
+console.log('[editor.js] Adding DOMContentLoaded listener');
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('[editor.js] DOMContentLoaded fired, scheduling initEditor');
   setTimeout(initEditor, 200);
 });
