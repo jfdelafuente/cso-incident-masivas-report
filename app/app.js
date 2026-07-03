@@ -172,6 +172,7 @@
     },
     save() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta: this.state.meta, incidents: this.state.incidents, openIdx: this.state.openIdx })); } catch (e) {}
+      document.dispatchEvent(new Event('incident-changed'));
     },
 
     // ---- derived values ----
@@ -203,28 +204,36 @@
 
     // ---- static bindings ----
     renderMetaInputs() {
-      this.els.metaYear.value = this.state.meta.year;
-      this.els.metaWeek.value = this.state.meta.week;
-      this.els.metaRange.value = this.state.meta.range;
-      this.els.metaDept.value = this.state.meta.dept;
+      // Only render if elements exist (they may not in preview/other pages)
+      if (this.els.metaYear) this.els.metaYear.value = this.state.meta.year;
+      if (this.els.metaWeek) this.els.metaWeek.value = this.state.meta.week;
+      if (this.els.metaRange) this.els.metaRange.value = this.state.meta.range;
+      if (this.els.metaDept) this.els.metaDept.value = this.state.meta.dept;
     },
     bindStaticEvents() {
-      const on = (id, ev, fn) => document.getElementById(id).addEventListener(ev, fn);
+      // Defensive event binding - only bind if element exists
+      const on = (id, ev, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(ev, fn);
+      };
+
       on('metaYear', 'input', e => this.onMeta('year', e.target.value));
       on('metaWeek', 'input', e => this.onMeta('week', e.target.value));
       on('metaRange', 'input', e => this.onMeta('range', e.target.value));
       on('metaDept', 'input', e => this.onMeta('dept', e.target.value));
       on('btnAdd', 'click', () => this.addIncident());
-      on('btnImport', 'click', () => this.els.fileInput.click());
+      on('btnImport', 'click', () => this.els.fileInput ? this.els.fileInput.click() : null);
       on('fileInput', 'change', e => this.onFile(e));
       on('btnTemplate', 'click', () => this.downloadTemplate());
       on('btnExportJSON', 'click', () => this.exportJSON());
       on('btnExportPDF', 'click', () => window.print());
       on('btnExportPPTX', 'click', () => this.exportPPTX());
 
-      this.els.incidentsList.addEventListener('click', (e) => this.onListClick(e));
-      this.els.incidentsList.addEventListener('input', (e) => this.onListInput(e));
-      this.els.incidentsList.addEventListener('change', (e) => this.onListChange(e));
+      if (this.els.incidentsList) {
+        this.els.incidentsList.addEventListener('click', (e) => this.onListClick(e));
+        this.els.incidentsList.addEventListener('input', (e) => this.onListInput(e));
+        this.els.incidentsList.addEventListener('change', (e) => this.onListChange(e));
+      }
     },
 
     onMeta(k, v) {
@@ -302,8 +311,9 @@
     // ---- sidebar rendering ----
     renderSidebarList() {
       const c = this.computed();
-      this.els.incCount.textContent = c.count;
-      this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) => this.rowTemplate(inc, idx)).join('');
+      // Only render if elements exist (they may not in preview/other pages)
+      if (this.els.incCount) this.els.incCount.textContent = c.count;
+      if (this.els.incidentsList) this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) => this.rowTemplate(inc, idx)).join('');
     },
     rowTemplate(inc, idx) {
       const isOpen = this.state.openIdx === idx;
@@ -376,6 +386,7 @@
 
     // ---- deck rendering ----
     renderDeck() {
+      if (!this.els.deck) return;
       const html = this.coverTemplate() + this.dashboardTemplate() + this.state.incidents.map(inc => this.incidentSlideTemplate(inc)).join('');
       this.els.deck.innerHTML = html;
       this.fit();
@@ -738,4 +749,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => App.init());
+
+  // Expose App globally so other scripts can access it
+  window.App = App;
 })();

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reportes de Incidencias — MASORANGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: "Inter", system-ui, sans-serif; background: #F7F6F4; }
+body { color: #26241F; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid #DEDAD3;
+}
+
+.logo { height: 40px; }
+
+.title h1 { margin: 0; font-size: 28px; font-weight: 700; }
+.title p { margin: 5px 0 0; font-size: 14px; color: #8A857C; }
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #FF7900;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(255, 121, 0, 0.15);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #E56D00;
+  box-shadow: 0 4px 12px rgba(255, 121, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(255, 121, 0, 0.15);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #26241F;
+  border: 1px solid #DEDAD3;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #F7F6F4;
+  border-color: #B8B2A9;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-secondary:active:not(:disabled) {
+  background: #EFEDE9;
+}
+
+.btn-success {
+  background: #1D8754;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(29, 135, 84, 0.15);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #156641;
+  box-shadow: 0 4px 12px rgba(29, 135, 84, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-success:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(29, 135, 84, 0.15);
+}
+
+.btn-danger {
+  background: #D43A2F;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(212, 58, 47, 0.15);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #B82D27;
+  box-shadow: 0 4px 12px rgba(212, 58, 47, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(212, 58, 47, 0.15);
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.report-card {
+  background: #fff;
+  border: 1px solid #DEDAD3;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.report-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.report-id {
+  font-size: 16px;
+  font-weight: 700;
+  color: #26241F;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-draft { background: #FFF1E6; color: #FF7900; }
+.status-reviewed { background: #E6F3FF; color: #0066CC; }
+.status-published { background: #E6F5EA; color: #1D8754; }
+
+.report-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #5C5852;
+}
+
+.report-meta strong { color: #26241F; }
+
+.report-incidences {
+  padding: 12px;
+  background: #F7F6F4;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #5C5852;
+}
+
+.report-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.report-actions .btn {
+  padding: 8px 12px;
+  font-size: 12px;
+  justify-content: center;
+  width: 100%;
+}
+
+.report-actions .btn-success {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-actions .btn-danger {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-state h2 { font-size: 24px; margin-bottom: 10px; }
+.empty-state p { color: #8A857C; margin-bottom: 30px; }
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.active { display: flex; }
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.modal-header h2 { margin: 0; }
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #8A857C;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #8A857C;
+  margin-bottom: 6px;
+}
+
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #DEDAD3;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.loading { opacity: 0.6; pointer-events: none; }
+
+.error { color: #D43A2F; font-size: 13px; }
+.success { color: #1D8754; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <svg class="logo" viewBox="0 0 1353.9 616.08" xmlns="http://www.w3.org/2000/svg"><path d="M244.59 8.3h110.29v244.57H244.59zM0 252.87h244.57v110.29H0zm354.89 0h244.57v110.29H354.89zm-.01 110.9H244.59v244.57h110.29z" fill="#ff7900"></path><path d="M1246.6 252.85c-24.12-93.64-108.5-160.6-209.87-160.6s-187.88 66.96-212.37 160.6H717.75C743.59 105.59 873.45 0 1035.85 0s292.12 106.19 318.05 252.85zm-209.87 270.98c100.07 0 184.81-67.47 209.45-160.69h107.48c-26.58 146.1-155.96 252.94-317.77 252.94S744.7 509.29 718.12 363.14h106.74c25.2 93.22 111.79 160.69 211.87 160.69" fill="#ffffff" fill-rule="evenodd"></path></svg>
+    <div class="title">
+      <h1>Reportes de Incidencias</h1>
+      <p>Gestión semanal IT + RED</p>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btnNewReport">+ Nuevo Informe</button>
+    <button class="btn btn-secondary" id="btnImportReport">Importar JSON</button>
+  </div>
+
+  <div id="reportsList" class="reports-grid"></div>
+
+  <div id="emptyState" class="empty-state">
+    <h2>No hay informes</h2>
+    <p>Crea el primer informe de la semana</p>
+    <button class="btn btn-primary" id="btnNewReportEmpty">+ Nuevo Informe</button>
+  </div>
+
+</div>
+
+<!-- Modal: Nuevo/Editar Informe -->
+<div id="reportModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">Nuevo Informe</h2>
+      <button class="close-btn" id="closeModal">&times;</button>
+    </div>
+    <form id="reportForm">
+      <div class="form-group">
+        <label>Año</label>
+        <input type="number" id="formYear" placeholder="2026" required>
+      </div>
+      <div class="form-group">
+        <label>Semana</label>
+        <input type="number" id="formWeek" placeholder="26" min="1" max="53" required>
+      </div>
+      <div class="form-group">
+        <label>Rango de fechas</label>
+        <input type="text" id="formRange" placeholder="22 – 26 junio 2026" required>
+      </div>
+      <div class="form-group">
+        <label>Departamento</label>
+        <input type="text" id="formDept" placeholder="Customer & Service Operations" required>
+      </div>
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="formStatus">
+          <option value="draft">Borrador</option>
+          <option value="reviewed">Revisado</option>
+          <option value="published">Publicado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Notas</label>
+        <textarea id="formNotes" placeholder="Notas adicionales..."></textarea>
+      </div>
+      <div id="formError" class="error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="cancelBtn">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Duplicar Informe -->
+<div id="duplicateModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Duplicar Informe</h2>
+      <button class="close-btn" id="closeDuplicateModal">&times;</button>
+    </div>
+    <p id="duplicateInfo"></p>
+    <form id="duplicateForm">
+      <div class="form-group">
+        <label>Nueva Semana</label>
+        <input type="number" id="duplicateWeek" placeholder="27" min="1" max="53" required>
+      </div>
+      <div id="duplicateError" class="error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="cancelDuplicateBtn">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Duplicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json" style="display:none;">
+
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="api-client.js"></script>
+<script src="home.js"></script>
+
+</body>
+</html>
