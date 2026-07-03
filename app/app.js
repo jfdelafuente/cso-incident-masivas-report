@@ -210,22 +210,29 @@
       this.els.metaDept.value = this.state.meta.dept;
     },
     bindStaticEvents() {
-      const on = (id, ev, fn) => document.getElementById(id).addEventListener(ev, fn);
+      // Defensive event binding - only bind if element exists
+      const on = (id, ev, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(ev, fn);
+      };
+
       on('metaYear', 'input', e => this.onMeta('year', e.target.value));
       on('metaWeek', 'input', e => this.onMeta('week', e.target.value));
       on('metaRange', 'input', e => this.onMeta('range', e.target.value));
       on('metaDept', 'input', e => this.onMeta('dept', e.target.value));
       on('btnAdd', 'click', () => this.addIncident());
-      on('btnImport', 'click', () => this.els.fileInput.click());
+      on('btnImport', 'click', () => this.els.fileInput ? this.els.fileInput.click() : null);
       on('fileInput', 'change', e => this.onFile(e));
       on('btnTemplate', 'click', () => this.downloadTemplate());
       on('btnExportJSON', 'click', () => this.exportJSON());
       on('btnExportPDF', 'click', () => window.print());
       on('btnExportPPTX', 'click', () => this.exportPPTX());
 
-      this.els.incidentsList.addEventListener('click', (e) => this.onListClick(e));
-      this.els.incidentsList.addEventListener('input', (e) => this.onListInput(e));
-      this.els.incidentsList.addEventListener('change', (e) => this.onListChange(e));
+      if (this.els.incidentsList) {
+        this.els.incidentsList.addEventListener('click', (e) => this.onListClick(e));
+        this.els.incidentsList.addEventListener('input', (e) => this.onListInput(e));
+        this.els.incidentsList.addEventListener('change', (e) => this.onListChange(e));
+      }
     },
 
     onMeta(k, v) {
