@@ -1,10 +1,13 @@
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
+from pathlib import Path
 import json
 import os
+import subprocess
+import sys
 
 from models import Base, Report
 from schemas import ReportCreate, ReportUpdate, ReportResponse, IncidentBase
@@ -32,6 +35,49 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# ============ Release Dashboard CSV Upload ============
+# Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/)
+RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
+    "RELEASE_DASHBOARD_ROOT",
+    str(Path(__file__).resolve().parent.parent.parent / "release-dashboard-application")
+))
+
+DASHBOARD_CONVERTER_SCRIPTS = {
+    "massive": RELEASE_DASHBOARD_ROOT / "converters" / "cli" / "convert_incidents.py",
+    "postmortem": RELEASE_DASHBOARD_ROOT / "converters" / "cli" / "convert_postmortems.py",
+}
+
+@app.post("/api/upload")
+async def upload_dashboard_csv(file: UploadFile = File(...), type: str = Form("massive")):
+    """Guarda un CSV de Release Dashboard en data/input y lo convierte a JSON"""
+    filename = Path(file.filename).name
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="El archivo debe tener extensión .csv")
+
+    script_path = DASHBOARD_CONVERTER_SCRIPTS.get(type, DASHBOARD_CONVERTER_SCRIPTS["massive"])
+    if not script_path.exists():
+        raise HTTPException(status_code=500, detail=f"Converter no encontrado: {script_path}")
+
+    input_dir = RELEASE_DASHBOARD_ROOT / "data" / "input"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = input_dir / filename
+    csv_path.write_bytes(await file.read())
+
+    result = subprocess.run(
+        [sys.executable, str(script_path), str(csv_path)],
+        capture_output=True,
+        text=True,
+        cwd=str(RELEASE_DASHBOARD_ROOT)
+    )
+
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"El CSV se guardó pero falló la conversión a JSON: {(result.stdout + result.stderr)[-2000:]}"
+        )
+
+    return {"success": True, "message": f"{filename} guardado en data/input/ y convertido correctamente"}
 
 # ============ CRUD Operations ============
 
