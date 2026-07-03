@@ -386,6 +386,7 @@
 
     // ---- deck rendering ----
     renderDeck() {
+      if (!this.els.deck) return;
       const html = this.coverTemplate() + this.dashboardTemplate() + this.state.incidents.map(inc => this.incidentSlideTemplate(inc)).join('');
       this.els.deck.innerHTML = html;
       this.fit();
