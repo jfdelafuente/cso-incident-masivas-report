@@ -10,9 +10,13 @@ const ReportEditor = {
     const params = new URLSearchParams(window.location.search);
     const reportId = params.get('report');
 
+    console.log('[ReportEditor] URL params:', { reportId, fullUrl: window.location.href });
+
     if (reportId) {
+      console.log('[ReportEditor] Cargando informe:', reportId);
       await this.loadReport(reportId);
     } else {
+      console.log('[ReportEditor] Nuevo informe (sin parámetro)');
       this.initializeNew();
     }
 
