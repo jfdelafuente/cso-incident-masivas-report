@@ -739,4 +739,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => App.init());
+
+  // Expose App globally so other scripts can access it
+  window.App = App;
 })();
