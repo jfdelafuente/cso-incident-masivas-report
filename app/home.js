@@ -1,3 +1,36 @@
+// PPT generation utilities (matching app.js format)
+const BRAND_LOGOS_PPTX = [['orange', 1.0], ['yoigo', 2.58], ['jazztel', 3.21], ['masmovil', 4.56], ['pepephone', 4.43], ['simyo', 2.66], ['llamaya', 3.01], ['lebara', 3.47], ['euskaltel', 3.77], ['r', 0.94], ['telecable', 2.21], ['guuk', 2.13], ['embou', 2.99], ['populoos', 3.35]];
+const SEV = {
+  SL1: { color: '#D43A2F', label: 'SL1 · Crítica' },
+  SL2: { color: '#FF7900', label: 'SL2 · Alta' },
+  SL3: { color: '#E6A100', label: 'SL3 · Media' },
+};
+function sev(k) { return SEV[k] || SEV.SL2; }
+function parseDurMin(s) {
+  s = String(s || '');
+  const h = (s.match(/(\d+)\s*h/) || [0, 0])[1];
+  const m = (s.match(/(\d+)\s*m/) || [0, 0])[1];
+  return (+h) * 60 + (+m);
+}
+function fmtDur(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h && m) return h + 'h ' + m + 'min';
+  if (h) return h + 'h';
+  return m + 'min';
+}
+function fmtK(v) {
+  if (!v) return '0';
+  const s = (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, '');
+  return s.replace('.', ',') + 'K';
+}
+function num(v) { return parseFloat(String(v == null ? '' : v).replace(',', '.')) || 0; }
+function metricsArr(s) {
+  return String(s || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const p = l.split('|');
+    return p.length > 1 ? { label: p[0].trim(), value: p.slice(1).join('|').trim() } : { label: '', value: l };
+  });
+}
+
 const HomePage = {
   reports: [],
   currentEditId: null,
@@ -239,95 +272,134 @@ const HomePage = {
 
   async downloadPPTX(reportId) {
     try {
-      const report = await ApiClient.getReport(reportId);
+      if (!window.PptxGenJS) { alert('La librería de PowerPoint aún se está cargando, inténtalo de nuevo en unos segundos.'); return; }
 
-      const prs = new PptxGenJS();
-      prs.defineLayout({ name: 'LAYOUT1', width: 12.5, height: 7 });
-      prs.defineLayout({ name: 'BLANK', width: 12.5, height: 7 });
+      const report = await ApiClient.getReport(reportId);
+      const P = new window.PptxGenJS();
+      P.defineLayout({ name: 'W', width: 13.333, height: 7.5 });
+      P.layout = 'W';
+
+      const ORANGE = 'FF7900', BLACK = '000000', WHITE = 'FFFFFF', GREY = '8A857C', INK = '0C0B09', LINE = 'DEDAD3', MUT = '5C5852';
+      const m = report, inc = report.incidents || [];
+
+      // Compute statistics
+      const count = inc.length;
+      const itCount = inc.filter(i => (i.group || '').includes('IT')).length;
+      const redCount = count - itCount;
+      const sl1 = inc.filter(i => i.severity === 'SL1').length;
+      const sl2 = inc.filter(i => i.severity === 'SL2').length;
+      const sl3 = inc.filter(i => i.severity === 'SL3').length;
+      const totalMin = inc.reduce((a, i) => a + parseDurMin(i.duration), 0);
+      const ftth = inc.reduce((a, i) => a + num(i.cFTTH), 0);
+      const mob = inc.reduce((a, i) => a + num(i.cMobile), 0);
+      const ministryCount = inc.filter(i => i.ministry).length;
+      const platformCount = inc.filter(i => i.platform).length;
+
+      const v = { count, itCount, redCount, sl1, sl2, sl3, ministryCount, platformCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
 
       // Portada
-      const slide1 = prs.addSlide();
-      slide1.background = { color: '000000' };
-      slide1.addText('Reporte de Incidencias', {
-        x: 0.5, y: 2.5, w: 11.5, h: 1,
-        fontSize: 60, bold: true, color: 'FFFFFF',
-        align: 'center'
+      let s = P.addSlide(); s.background = { color: BLACK };
+      s.addText([{ text: '+', options: { color: ORANGE, bold: true } }, { text: 'O', options: { color: WHITE, bold: true } }], { x: 0.5, y: 0.45, w: 2, h: 0.8, fontSize: 40, fontFace: 'Arial' });
+      s.addText(m.dept, { x: 8.3, y: 0.55, w: 4.5, h: 0.4, align: 'right', color: 'B8B2A9', fontSize: 13, fontFace: 'Arial' });
+      s.addText((m.year + ' · SEMANA ' + m.week).toUpperCase(), { x: 0.5, y: 3.7, w: 10, h: 0.4, color: ORANGE, fontSize: 16, bold: true, charSpacing: 3, fontFace: 'Arial' });
+      s.addText([{ text: 'Reporte de incidencias ', options: { color: WHITE } }, { text: 'IT + RED', options: { color: ORANGE } }], { x: 0.48, y: 3.95, w: 11, h: 1.5, fontSize: 54, bold: true, fontFace: 'Arial', lineSpacingMultiple: 0.95 });
+      s.addText(m.range, { x: 0.5, y: 5.72, w: 7, h: 0.4, color: GREY, fontSize: 14, fontFace: 'Arial' });
+      s.addText([{ text: v.count + '   ', options: { color: WHITE, bold: true, fontSize: 26 } }, { text: 'incidencias      ', options: { color: GREY, fontSize: 12 } }, { text: v.totalDuration + '  ', options: { color: ORANGE, bold: true, fontSize: 26 } }, { text: 'acumulado', options: { color: GREY, fontSize: 12 } }], { x: 5.5, y: 5.64, w: 7.3, h: 0.55, align: 'right', fontFace: 'Arial' });
+      const Hin = 0.25, gap = 0.16, maxW = 13.0, vgap = 0.18, padV = 0.2;
+      let lrows = [[]], rw = 0;
+      BRAND_LOGOS_PPTX.forEach(([f, ar]) => { const w = Hin * ar; if (rw > 0 && rw + w > maxW) { lrows.push([]); rw = 0; } lrows[lrows.length - 1].push([f, w]); rw += w + gap; });
+      const bandH = lrows.length * Hin + (lrows.length - 1) * vgap + padV * 2;
+      const bandY = 7.42 - bandH;
+      s.addShape(P.ShapeType.rect, { x: 0, y: bandY, w: 13.333, h: bandH, fill: { color: WHITE } });
+      lrows.forEach((row, ri) => {
+        const rowW = row.reduce((a, b) => a + b[1], 0) + (row.length - 1) * gap;
+        let x = (13.333 - rowW) / 2;
+        const y = bandY + padV + ri * (Hin + vgap);
+        row.forEach(([f, w]) => { try { s.addImage({ path: 'assets/brands/' + f + '.png', x, y, w, h: Hin }); } catch (e) {} x += w + gap; });
       });
-      slide1.addText(reportId, {
-        x: 0.5, y: 3.8, w: 11.5, h: 0.5,
-        fontSize: 28, color: 'FF7900',
-        align: 'center'
-      });
-      slide1.addText(report.range, {
-        x: 0.5, y: 4.5, w: 11.5, h: 0.4,
-        fontSize: 16, color: '999999',
-        align: 'center'
-      });
+      s.addShape(P.ShapeType.rect, { x: 0, y: 7.42, w: 13.333, h: 0.08, fill: { color: ORANGE } });
 
-      // Resumen
-      const slide2 = prs.addSlide();
-      slide2.background = { color: 'FFFFFF' };
-      slide2.addText('Resumen Ejecutivo', {
-        x: 0.5, y: 0.5, w: 11.5, h: 0.5,
-        fontSize: 32, bold: true, color: '000000'
+      // Resumen ejecutivo
+      s = P.addSlide(); s.background = { color: WHITE };
+      s.addText('RESUMEN EJECUTIVO', { x: 0.55, y: 0.5, w: 8, h: 0.35, color: ORANGE, fontSize: 13, bold: true, charSpacing: 2, fontFace: 'Arial' });
+      s.addText('La semana en cifras', { x: 0.5, y: 0.82, w: 8, h: 0.7, color: INK, fontSize: 34, bold: true, fontFace: 'Arial' });
+      s.addText((m.year + ' · Semana ' + m.week + ' · ' + m.range), { x: 6.5, y: 1.0, w: 6.3, h: 0.4, align: 'right', color: GREY, fontSize: 13, fontFace: 'Arial' });
+      s.addShape(P.ShapeType.line, { x: 0.5, y: 1.7, w: 12.33, h: 0, line: { color: BLACK, width: 2.5 } });
+      const tiles = [
+        { n: String(v.count), l: 'Incidencias totales', s: v.itCount + ' IT · ' + v.redCount + ' RED', c: INK },
+        { n: v.totalDuration, l: 'Tiempo de afectación', s: 'acumulado', c: ORANGE },
+        { n: v.totalMobile, l: 'Clientes móvil', s: 'impacto estimado', c: INK },
+        { n: v.totalFTTH, l: 'Clientes FTTH', s: 'impacto estimado', c: INK },
+      ];
+      tiles.forEach((t, i) => {
+        const x = 0.5 + i * 3.13;
+        s.addShape(P.ShapeType.roundRect, { x, y: 2.0, w: 2.95, h: 1.85, fill: { color: WHITE }, line: { color: LINE, width: 1 }, rectRadius: 0.1 });
+        s.addText(t.n, { x: x + 0.2, y: 2.2, w: 2.6, h: 0.8, color: t.c, fontSize: 40, bold: true, fontFace: 'Arial' });
+        s.addText(t.l, { x: x + 0.2, y: 3.05, w: 2.6, h: 0.35, color: MUT, fontSize: 13, bold: true, fontFace: 'Arial' });
+        s.addText(t.s, { x: x + 0.2, y: 3.38, w: 2.6, h: 0.3, color: GREY, fontSize: 11, fontFace: 'Arial' });
       });
-
-      const summaryText = `
-Periodo: ${report.range}
-Departamento: ${report.dept}
-Estado: ${report.status}
-Total de Incidencias: ${report.incidents.length}
-
-Incidencias por Severidad:
-SL1: ${report.incidents.filter(i => i.severity === 'SL1').length}
-SL2: ${report.incidents.filter(i => i.severity === 'SL2').length}
-SL3: ${report.incidents.filter(i => i.severity === 'SL3').length}
-      `;
-
-      slide2.addText(summaryText, {
-        x: 0.5, y: 1.3, w: 11.5, h: 5,
-        fontSize: 14, color: '333333',
-        valign: 'top'
+      s.addShape(P.ShapeType.roundRect, { x: 0.5, y: 4.15, w: 8.2, h: 2.85, fill: { color: WHITE }, line: { color: LINE, width: 1 }, rectRadius: 0.1 });
+      s.addText('POR SEVERIDAD', { x: 0.8, y: 4.4, w: 6, h: 0.35, color: GREY, fontSize: 12, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      [['SL1 · Crítica', v.sl1, 'D43A2F'], ['SL2 · Alta', v.sl2, ORANGE], ['SL3 · Media', v.sl3, 'E6A100']].forEach((r, i) => {
+        const y = 4.95 + i * 0.62;
+        s.addText(r[0], { x: 0.8, y, w: 2, h: 0.4, color: r[2], fontSize: 13, bold: true, fontFace: 'Arial' });
+        s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w: 5, h: 0.22, fill: { color: 'EFEDE9' }, rectRadius: 0.11 });
+        const w = v.count ? Math.max(0.1, 5 * r[1] / v.count) : 0.1;
+        s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w, h: 0.22, fill: { color: r[2] }, rectRadius: 0.11 });
+        s.addText(String(r[1]), { x: 8.0, y, w: 0.55, h: 0.4, align: 'right', color: INK, fontSize: 15, bold: true, fontFace: 'Arial' });
       });
+      s.addShape(P.ShapeType.roundRect, { x: 8.95, y: 4.15, w: 3.88, h: 2.85, fill: { color: BLACK }, rectRadius: 0.1 });
+      s.addText('REPORTADAS AL MINISTERIO', { x: 9.25, y: 4.35, w: 3.3, h: 0.35, align: 'center', color: 'B8B2A9', fontSize: 11, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      s.addText(String(v.ministryCount), { x: 9.25, y: 4.62, w: 3.3, h: 0.75, align: 'center', color: ORANGE, fontSize: 40, bold: true, fontFace: 'Arial' });
+      s.addShape(P.ShapeType.line, { x: 9.25, y: 5.55, w: 3.3, h: 0, line: { color: '2A2823', width: 1 } });
+      s.addText('CON IMPACTO EN PLATAFORMA', { x: 9.25, y: 5.7, w: 3.3, h: 0.35, align: 'center', color: 'B8B2A9', fontSize: 11, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      s.addText(String(v.platformCount), { x: 9.25, y: 5.97, w: 3.3, h: 0.75, align: 'center', color: WHITE, fontSize: 40, bold: true, fontFace: 'Arial' });
 
       // Slides de incidencias
-      report.incidents.forEach((inc, idx) => {
-        const slide = prs.addSlide();
-        slide.background = { color: 'FFFFFF' };
-
-        const colors = { 'SL1': 'D43A2F', 'SL2': 'FF7900', 'SL3': 'E6A100' };
-        const sevColor = colors[inc.severity] || 'FF7900';
-
-        slide.addText(`${idx + 1}. ${inc.title || inc.category}`, {
-          x: 0.5, y: 0.5, w: 10, h: 0.6,
-          fontSize: 24, bold: true, color: '000000'
+      inc.forEach((it) => {
+        const sv = sev(it.severity);
+        const sl = P.addSlide(); sl.background = { color: WHITE };
+        sl.addShape(P.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 2.25, fill: { color: BLACK } });
+        sl.addText(it.group.toUpperCase(), { x: 0.55, y: 0.35, w: 7, h: 0.35, color: ORANGE, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
+        sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, fill: { color: sv.color.replace('#', '') }, rectRadius: 0.17 });
+        sl.addText(sv.label, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, align: 'center', color: WHITE, fontSize: 11, bold: true, fontFace: 'Arial' });
+        sl.addText(it.title || ((it.category || '') + (it.system ? ' · ' + it.system : '')), { x: 2.7, y: 0.78, w: 7.0, h: 1.1, color: WHITE, fontSize: 23, bold: true, fontFace: 'Arial', valign: 'middle', lineSpacingMultiple: 1 });
+        const meta2 = [['ID', it.ticket], ['FECHA', it.date], ['DURACIÓN', it.duration]];
+        meta2.forEach((mm, i) => {
+          const x = 9.9 + i * 1.13;
+          sl.addText(mm[0], { x, y: 0.4, w: 1.1, h: 0.3, color: GREY, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
+          sl.addText(String(mm[1] || '—'), { x, y: 0.72, w: 1.1, h: 1.0, color: i === 2 ? ORANGE : WHITE, fontSize: 11, bold: i === 2, fontFace: 'Arial' });
         });
-
-        slide.addText(inc.severity, {
-          x: 10.8, y: 0.5, w: 1, h: 0.6,
-          fontSize: 12, bold: true, color: 'FFFFFF',
-          align: 'center',
-          fill: { color: sevColor }
+        const colY = 2.5, colH = 4.2;
+        sl.addText('IMPACTO', { x: 0.55, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+        sl.addShape(P.ShapeType.line, { x: 0.55, y: colY + 0.4, w: 1.0, h: 0, line: { color: ORANGE, width: 2.5 } });
+        const mets = metricsArr(it.metrics);
+        let yy = colY + 0.65;
+        mets.forEach(mt => {
+          sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: yy, w: 4.3, h: 0.42, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
+          sl.addText(mt.label, { x: 0.7, y: yy, w: 2.6, h: 0.42, color: MUT, fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+          sl.addText(mt.value, { x: 3.0, y: yy, w: 1.75, h: 0.42, align: 'right', color: INK, fontSize: 12, bold: true, valign: 'middle', fontFace: 'Arial' });
+          yy += 0.5;
         });
-
-        const details = `
-Sistema: ${inc.system || '—'}
-Categoría: ${inc.category || '—'}
-Duración: ${inc.duration || '—'}
-Causa: ${inc.cause || '—'}
-Solución: ${inc.solution || '—'}
-        `;
-
-        slide.addText(details, {
-          x: 0.5, y: 1.3, w: 11.5, h: 5,
-          fontSize: 12, color: '333333',
-          valign: 'top'
-        });
+        if (it.impact) sl.addText(it.impact, { x: 0.55, y: yy + 0.05, w: 4.35, h: colH - (yy - colY), color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+        sl.addText('CAUSA', { x: 5.25, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+        sl.addShape(P.ShapeType.line, { x: 5.25, y: colY + 0.4, w: 1.0, h: 0, line: { color: BLACK, width: 2.5 } });
+        sl.addText(it.cause || '', { x: 5.25, y: colY + 0.65, w: 3.55, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+        sl.addText('SOLUCIÓN', { x: 9.15, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+        sl.addShape(P.ShapeType.line, { x: 9.15, y: colY + 0.4, w: 1.0, h: 0, line: { color: '1D8754', width: 2.5 } });
+        sl.addText(it.solution || '', { x: 9.15, y: colY + 0.65, w: 3.65, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+        sl.addShape(P.ShapeType.rect, { x: 0, y: 6.95, w: 13.333, h: 0.55, fill: { color: 'F7F6F4' } });
+        sl.addText('MARCAS:  ' + (it.brands || '—'), { x: 0.55, y: 6.95, w: 8, h: 0.55, color: '5C5852', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+        const flags = [];
+        if (it.ministry) flags.push({ text: '● Reportada al Ministerio', options: { color: ORANGE, bold: true } });
+        if (it.platform) { if (flags.length) flags.push({ text: '     ', options: {} }); flags.push({ text: '● Impacto en plataforma', options: { color: MUT, bold: true } }); }
+        if (flags.length) sl.addText(flags, { x: 6.5, y: 6.95, w: 6.3, h: 0.55, align: 'right', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
       });
 
-      prs.writeFile({ fileName: `${reportId}_ReporteIncidencias.pptx` });
+      P.writeFile({ fileName: reportId + '_ReporteIncidencias.pptx' });
     } catch (error) {
       alert('Error al descargar PPT: ' + error.message);
+      console.error(error);
     }
   },
 
