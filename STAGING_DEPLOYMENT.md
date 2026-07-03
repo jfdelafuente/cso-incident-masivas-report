@@ -2,7 +2,7 @@
 
 ## 📋 Instrucciones de despliegue
 
-El repositorio se despliega en `/infocodes/cso-incident-masivas-report` mediante [`deploy.sh`](deploy.sh), que clona/actualiza el código desde git, instala dependencias, inicializa la BD, aplica `nginx.conf` y (re)inicia el backend. No hace falta empaquetar ni copiar un `.tar.gz`.
+El repositorio se despliega en `/infocodes/project/cso-incident-masivas-report` mediante [`deploy.sh`](deploy.sh), que clona/actualiza el código desde git, instala dependencias, inicializa la BD, aplica `nginx.conf` y (re)inicia el backend. No hace falta empaquetar ni copiar un `.tar.gz`.
 
 ### Paso 1: Primer acceso al servidor (solo la primera vez)
 
@@ -11,13 +11,14 @@ ssh <usuario>@10.132.68.85
 # Si el repo aún no existe en el servidor, deploy.sh lo clona automáticamente,
 # pero necesita el script en algún sitio para arrancar. La forma más simple
 # es clonar el repo directamente:
-git clone https://github.com/jfdelafuente/cso-incident-masivas-report.git /infocodes/cso-incident-masivas-report
+mkdir -p /infocodes/project
+git clone https://github.com/jfdelafuente/cso-incident-masivas-report.git /infocodes/project/cso-incident-masivas-report
 ```
 
 ### Paso 2: Ejecutar el despliegue
 
 ```bash
-cd /infocodes/cso-incident-masivas-report
+cd /infocodes/project/cso-incident-masivas-report
 bash deploy.sh
 ```
 
@@ -34,13 +35,13 @@ Nginx corre desde una instalación propia en `/infocodes/nginx` (no la del paque
 
 2. **Copiar la configuración del repo** (ya incluye los bloques `/static`, `/dashboards`, `/data` existentes junto con `/reportes-incidencias`):
    ```bash
-   cp /infocodes/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
+   cp /infocodes/project/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
    ```
 
    El bloque relevante para esta app es:
    ```nginx
    location /reportes-incidencias {
-       alias /infocodes/cso-incident-masivas-report/app;
+       alias /infocodes/project/cso-incident-masivas-report/app;
        index index.html index.htm;
        try_files $uri $uri/ /index.html;
    }
@@ -131,7 +132,7 @@ Nginx corre desde una instalación propia en `/infocodes/nginx` (no la del paque
 ## 🐛 Troubleshooting
 
 ### La página no carga o da 404
-- Verifica que el directorio `/infocodes/cso-incident-masivas-report/app/` existe y contiene `index.html`
+- Verifica que el directorio `/infocodes/project/cso-incident-masivas-report/app/` existe y contiene `index.html`
 - Revisa los logs de Nginx: `tail -f /infocodes/nginx/logs/error.log`
 - Confirma que la configuración de Nginx tiene `try_files $uri $uri/ /index.html;`
 

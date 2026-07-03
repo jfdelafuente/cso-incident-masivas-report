@@ -4,7 +4,7 @@ Guía completa para desplegar la aplicación "Automatización de reportes semana
 
 > 💡 El script [`deploy.sh`](deploy.sh) automatiza todos los pasos de esta guía (clonar/actualizar, dependencias, BD, Nginx, backend). Para el flujo recomendado basado en `scp` + `deploy.sh`, ver [`STAGING_DEPLOYMENT.md`](STAGING_DEPLOYMENT.md). Esta guía cubre los mismos pasos de forma manual, útil para depurar un fallo puntual del script.
 
-**Ruta de despliegue en el servidor:** `/infocodes/cso-incident-masivas-report`
+**Ruta de despliegue en el servidor:** `/infocodes/project/cso-incident-masivas-report`
 
 ---
 
@@ -50,7 +50,8 @@ sqlite3 --version
 
 ```bash
 ssh usuario@10.132.68.85
-cd /infocodes
+mkdir -p /infocodes/project
+cd /infocodes/project
 ```
 
 ### 2. Clonar el repositorio
@@ -108,14 +109,14 @@ curl --noproxy '*' http://localhost:8000/api/health
 
 ### 6. Configurar Nginx
 
-El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
+El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/project/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
 
 En este servidor, Nginx corre desde una instalación propia bajo `/infocodes/nginx`, con el binario en `/infocodes/nginx/sbin/nginx` y la configuración en `/infocodes/nginx/conf/nginx.conf`. Como todo el árbol `/infocodes` es propiedad del usuario `infocodes` (uid=2001) con el que se opera — sin root ni systemd —, estas operaciones **no llevan `sudo`**.
 
 **Hacer backup de la configuración actual y aplicar la del repo:**
 ```bash
 cp /infocodes/nginx/conf/nginx.conf /infocodes/nginx/conf/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
-cp /infocodes/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
+cp /infocodes/project/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
 /infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
 ```
 
@@ -132,7 +133,7 @@ cp /infocodes/nginx/conf/nginx.conf.backup.<timestamp> /infocodes/nginx/conf/ngi
 ps -ef | grep '[n]ginx: master process'
 ```
 
-> ⚠️ Si otra persona modificó `/infocodes/nginx/conf/nginx.conf` directamente en el servidor sin reflejarlo en el repo, sobrescribir con `nginx.conf` del repo perdería esos cambios. Revisa el diff (`diff /infocodes/nginx/conf/nginx.conf /infocodes/cso-incident-masivas-report/nginx.conf`) antes de copiar si no estás seguro.
+> ⚠️ Si otra persona modificó `/infocodes/nginx/conf/nginx.conf` directamente en el servidor sin reflejarlo en el repo, sobrescribir con `nginx.conf` del repo perdería esos cambios. Revisa el diff (`diff /infocodes/nginx/conf/nginx.conf /infocodes/project/cso-incident-masivas-report/nginx.conf`) antes de copiar si no estás seguro.
 
 ### 7. Verificar el despliegue
 
@@ -176,7 +177,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 - [ ] **Status:** Puede cambiar estado draft/reviewed/published
 
 ### Base de datos
-- [ ] `ls -la /infocodes/cso-incident-masivas-report/backend/reports.db` existe
+- [ ] `ls -la /infocodes/project/cso-incident-masivas-report/backend/reports.db` existe
 - [ ] Puedes consultar: `sqlite3 reports.db "SELECT COUNT(*) FROM report;"`
 
 ---
@@ -187,11 +188,11 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 
 ```bash
 # Verificar que el backend está corriendo
-cd /infocodes/cso-incident-masivas-report/backend && ./service.sh status
+cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status
 
 # Verificar logs
 tail -f /infocodes/nginx/logs/error.log
-tail -f /infocodes/cso-incident-masivas-report/backend/backend.log
+tail -f /infocodes/project/cso-incident-masivas-report/backend/backend.log
 
 # Reiniciar
 ./service.sh restart
@@ -210,10 +211,10 @@ curl -i -X OPTIONS http://10.132.68.85:8081/api/reports \
 
 ```bash
 # Reiniciar el servicio para liberar la BD
-cd /infocodes/cso-incident-masivas-report/backend && ./service.sh restart
+cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh restart
 
 # O limpiar locks de SQLite:
-rm -f /infocodes/cso-incident-masivas-report/backend/reports.db-*
+rm -f /infocodes/project/cso-incident-masivas-report/backend/reports.db-*
 ```
 
 ### Nginx no actualiza cambios del frontend
@@ -236,15 +237,15 @@ rm -f /infocodes/cso-incident-masivas-report/backend/reports.db-*
 tail -f /infocodes/var/log/nginx/infocodes.access.log | grep reportes
 
 # Logs de la API
-tail -f /infocodes/cso-incident-masivas-report/backend/backend.log
+tail -f /infocodes/project/cso-incident-masivas-report/backend/backend.log
 
 # Verificar procesos
-watch -n 1 "cd /infocodes/cso-incident-masivas-report/backend && ./service.sh status"
+watch -n 1 "cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status"
 ```
 
 **Estadísticas de base de datos:**
 ```bash
-sqlite3 /infocodes/cso-incident-masivas-report/backend/reports.db <<EOF
+sqlite3 /infocodes/project/cso-incident-masivas-report/backend/reports.db <<EOF
 SELECT 'Reportes' as tabla, COUNT(*) as cantidad FROM report;
 SELECT 'Usuarios' as tabla, COUNT(*) as cantidad FROM report WHERE createdBy IS NOT NULL;
 .tables
@@ -297,7 +298,7 @@ location /api {
 Para actualizar el código:
 
 ```bash
-cd /infocodes/cso-incident-masivas-report
+cd /infocodes/project/cso-incident-masivas-report
 git pull origin main
 
 # Si hay cambios en requirements.txt:
@@ -326,7 +327,7 @@ cd backend && ./service.sh restart
 lsof -i :8081 -i :8000
 
 # Detener el backend de forma ordenada (preferido sobre matar por puerto)
-cd /infocodes/cso-incident-masivas-report/backend && ./service.sh stop
+cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh stop
 
 # Matar proceso por puerto (último recurso, si service.sh no puede pararlo)
 fuser -k 8000/tcp

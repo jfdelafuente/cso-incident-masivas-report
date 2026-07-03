@@ -52,7 +52,7 @@ Full details in `DEPLOYMENT.md` (manual/reference walkthrough) and `STAGING_DEPL
 - Everything runs as the unprivileged `infocodes` user (uid=2001, no root, no sudo, no systemd) on `10.132.68.85:8081` / `infocodes.si.orange.es`. Never add `sudo` back into `deploy.sh` or the docs.
 - Nginx is a **self-contained install under `/infocodes/nginx`**, not the OS package: binary at `/infocodes/nginx/sbin/nginx`, config at `/infocodes/nginx/conf/nginx.conf`, error log at `/infocodes/nginx/logs/error.log`, access log at `/infocodes/var/log/nginx/infocodes.access.log`. Reload with `/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload` (there is no `nginx` systemd unit to restart).
 - That Nginx instance is shared with other apps (`/static`, `/dashboards`, `/data` locations already in `nginx.conf` alongside this app's `/reportes-incidencias` and `/api`). The repo's `nginx.conf` is the full merged config for the shared server — `deploy.sh` backs up the live config before overwriting it.
-- App deploy path on the server is `/infocodes/cso-incident-masivas-report`.
+- App deploy path on the server is `/infocodes/project/cso-incident-masivas-report`.
 - `deploy.sh` automates the whole flow: git clone/pull → venv + deps → DB init → backup+apply `nginx.conf` (roll back automatically if `nginx -t` fails) → `backend/service.sh restart` → verify frontend files exist. Re-running it is how you ship an update; it's idempotent.
 
 ## Data model notes

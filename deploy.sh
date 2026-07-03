@@ -9,7 +9,7 @@ echo "🚀 Iniciando despliegue de Reportes de Incidencias"
 echo "=================================================="
 
 # Configuración
-DEPLOY_PATH="/infocodes/cso-incident-masivas-report"
+DEPLOY_PATH="/infocodes/project/cso-incident-masivas-report"
 REPO_URL="https://github.com/jfdelafuente/cso-incident-masivas-report.git"
 BACKEND_PORT=8000
 FRONTEND_PATH="$DEPLOY_PATH/app"
@@ -40,6 +40,7 @@ if [ -d "$DEPLOY_PATH" ]; then
     git pull origin main
     log_success "Repositorio actualizado"
 else
+    mkdir -p "$(dirname "$DEPLOY_PATH")"
     git clone "$REPO_URL" "$DEPLOY_PATH"
     cd "$DEPLOY_PATH"
     log_success "Repositorio clonado"
