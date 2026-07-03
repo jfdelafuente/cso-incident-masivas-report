@@ -74,13 +74,17 @@ const ReportEditor = {
 
   async loadReport(reportId) {
     try {
-      console.log(`Cargando informe ${reportId}...`);
+      console.log(`[loadReport] Cargando informe ${reportId}...`);
       const report = await ApiClient.getReport(reportId);
+      console.log(`[loadReport] Informe cargado:`, report);
       this.currentReportId = reportId;
 
       // Update title and status
+      console.log(`[loadReport] Intentando actualizar UI...`);
       const reportTitle = document.getElementById('reportTitle');
+      console.log(`[loadReport] reportTitle element:`, reportTitle);
       if (reportTitle) reportTitle.textContent = reportId;
+      else console.warn('[loadReport] reportTitle es null');
 
       // Load metadata
       const metaYear = document.getElementById('metaYear');
