@@ -143,7 +143,16 @@ const ReportEditor = {
   },
 };
 
-// Initialize when app is ready
+// Initialize when App is ready
+function initEditor() {
+  if (typeof App === 'undefined') {
+    // App not ready yet, retry after a short delay
+    setTimeout(initEditor, 100);
+    return;
+  }
+  ReportEditor.init();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => ReportEditor.init(), 100);
+  setTimeout(initEditor, 200);
 });
