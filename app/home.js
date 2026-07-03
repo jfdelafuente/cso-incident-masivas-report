@@ -56,7 +56,11 @@ const HomePage = {
       <div class="report-card">
         <div class="report-header">
           <div class="report-id">${report.id}</div>
-          <div class="status-badge status-${report.status}">${report.status}</div>
+          <select class="status-select" onchange="HomePage.changeStatus('${report.id}', this.value)" style="padding:4px 8px; border-radius:4px; border:none; font-size:11px; font-weight:600; text-transform:uppercase; cursor:pointer;">
+            <option value="draft" ${report.status === 'draft' ? 'selected' : ''}>Draft</option>
+            <option value="reviewed" ${report.status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+            <option value="published" ${report.status === 'published' ? 'selected' : ''}>Published</option>
+          </select>
         </div>
 
         <div class="report-meta">
@@ -222,6 +226,18 @@ const HomePage = {
       }
     };
     reader.readAsText(file);
+  },
+
+  async changeStatus(reportId, newStatus) {
+    try {
+      const update = { status: newStatus };
+      await ApiClient.updateReport(reportId, update);
+      await this.loadReports();
+      console.log(`✓ Estado de ${reportId} cambiado a ${newStatus}`);
+    } catch (error) {
+      alert('Error al cambiar estado: ' + error.message);
+      await this.loadReports(); // Recargar para restaurar el estado anterior
+    }
   },
 };
 

@@ -45,6 +45,11 @@ const ReportEditor = {
       document.getElementById('metaRange').value = report.range;
       document.getElementById('metaDept').value = report.dept;
 
+      // Load status selector
+      const statusSelect = document.getElementById('reportStatusSelect');
+      statusSelect.value = report.status;
+      statusSelect.style.display = 'block';
+
       // Load incidents - override any localStorage data
       if (App && App.state) {
         App.state.meta = {
@@ -140,9 +145,9 @@ const ReportEditor = {
         window.history.replaceState({}, '', url);
 
         document.getElementById('reportTitle').textContent = created.id;
-        const statusBadge = document.getElementById('reportStatusBadge');
-        statusBadge.textContent = 'draft';
-        statusBadge.style.display = 'block';
+        const statusSelect = document.getElementById('reportStatusSelect');
+        statusSelect.value = 'draft';
+        statusSelect.style.display = 'block';
 
         alert('✓ Informe creado exitosamente');
         this.isDirty = false;
@@ -153,6 +158,24 @@ const ReportEditor = {
       // Update existing
       await this.autoSave();
       alert('✓ Informe guardado');
+    }
+  },
+
+  async updateStatus(newStatus) {
+    if (!this.currentReportId) {
+      alert('Primero debes crear el informe');
+      return;
+    }
+
+    try {
+      await ApiClient.updateReport(this.currentReportId, { status: newStatus });
+      console.log(`✓ Estado cambiado a ${newStatus}`);
+    } catch (error) {
+      alert('Error al cambiar estado: ' + error.message);
+      // Recargar para restaurar el estado anterior
+      const statusSelect = document.getElementById('reportStatusSelect');
+      const report = await ApiClient.getReport(this.currentReportId);
+      statusSelect.value = report.status;
     }
   },
 };
