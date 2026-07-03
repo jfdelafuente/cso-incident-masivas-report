@@ -204,10 +204,11 @@
 
     // ---- static bindings ----
     renderMetaInputs() {
-      this.els.metaYear.value = this.state.meta.year;
-      this.els.metaWeek.value = this.state.meta.week;
-      this.els.metaRange.value = this.state.meta.range;
-      this.els.metaDept.value = this.state.meta.dept;
+      // Only render if elements exist (they may not in preview/other pages)
+      if (this.els.metaYear) this.els.metaYear.value = this.state.meta.year;
+      if (this.els.metaWeek) this.els.metaWeek.value = this.state.meta.week;
+      if (this.els.metaRange) this.els.metaRange.value = this.state.meta.range;
+      if (this.els.metaDept) this.els.metaDept.value = this.state.meta.dept;
     },
     bindStaticEvents() {
       // Defensive event binding - only bind if element exists
