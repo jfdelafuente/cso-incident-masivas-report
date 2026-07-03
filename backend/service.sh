@@ -58,7 +58,7 @@ is_running() {
 wait_for_health() {
     local attempt=1
     while [ "$attempt" -le "$HEALTH_RETRIES" ]; do
-        if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+        if curl -sf --noproxy '*' "$HEALTH_URL" > /dev/null 2>&1; then
             return 0
         fi
         sleep "$HEALTH_INTERVAL"
@@ -142,7 +142,7 @@ status() {
     pid="$(pid_from_file)"
     if is_our_process "$pid"; then
         log_success "Backend corriendo (PID $pid)"
-        if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+        if curl -sf --noproxy '*' "$HEALTH_URL" > /dev/null 2>&1; then
             log_success "Healthcheck OK - $HEALTH_URL"
         else
             log_error "El proceso está vivo pero el healthcheck falla"

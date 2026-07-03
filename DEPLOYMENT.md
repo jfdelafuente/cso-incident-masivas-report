@@ -100,9 +100,11 @@ Logs en `backend.log`, PID en `backend.pid` (ambos ignorados por git).
 
 **Verificar que está corriendo:**
 ```bash
-curl http://localhost:8000/api/health
+curl --noproxy '*' http://localhost:8000/api/health
 # Debe responder: {"status":"ok","service":"Reportes de Incidencias API"}
 ```
+
+> ⚠️ Si la sesión tiene `http_proxy`/`https_proxy` definidas (habitual en este servidor), `curl` enruta incluso `localhost` a través del proxy corporativo, que responde `403 Forbidden` aunque el backend esté sano. Usa siempre `--noproxy '*'` para comprobaciones locales — `service.sh` ya lo hace internamente.
 
 ### 6. Configurar Nginx
 

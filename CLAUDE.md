@@ -43,6 +43,8 @@ There is no automated test suite and no lint/format tooling in this repo — don
 
 **Process management (`backend/service.sh`)**: the staging server has no systemd and the deploy user (`infocodes`, uid=2001) has no root, so the backend is supervised by a hand-rolled PID-file script instead of a systemd unit — `./service.sh {start|stop|restart|status}`. It refuses to start if port 8000 is already held by an unrelated process, and identifies "its" process by checking `/proc/<pid>/cmdline` (falls back to `ps` where `/proc` isn't available) rather than `pkill -f main.py`, because the server hosts multiple unrelated Python apps under `/infocodes` and a name-based kill could hit the wrong one.
 
+The staging shell has `http_proxy`/`https_proxy` set to a corporate proxy, and `curl` honors that even for `localhost`/`127.0.0.1` — the proxy then returns `403 Forbidden` for loopback destinations, making a perfectly healthy backend look dead. `service.sh`'s healthcheck curls always pass `--noproxy '*'`; do the same in any ad-hoc `curl` against localhost on that server, or the check will fail for the wrong reason.
+
 ## Deployment
 
 Full details in `DEPLOYMENT.md` (manual/reference walkthrough) and `STAGING_DEPLOYMENT.md` (the actual staging flow) — read those before changing deploy behavior. Key facts that aren't obvious from a typical FastAPI+Nginx setup:
