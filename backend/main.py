@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, Session
@@ -36,7 +36,7 @@ def get_db():
 # ============ CRUD Operations ============
 
 @app.post("/api/reports", response_model=ReportResponse)
-def create_report(report: ReportCreate, db: Session = next(get_db())):
+def create_report(report: ReportCreate, db: Session = Depends(get_db)):
     """Create a new report for a specific week"""
     report_id = f"{report.year}-W{str(report.week).zfill(2)}"
 
@@ -61,13 +61,13 @@ def create_report(report: ReportCreate, db: Session = next(get_db())):
     return db_report.to_dict()
 
 @app.get("/api/reports", response_model=list)
-def list_reports(db: Session = next(get_db())):
+def list_reports(db: Session = Depends(get_db)):
     """List all reports, ordered by year and week (descending)"""
     reports = db.query(Report).order_by(desc(Report.year), desc(Report.week)).all()
     return [r.to_dict() for r in reports]
 
 @app.get("/api/reports/{report_id}", response_model=ReportResponse)
-def get_report(report_id: str, db: Session = next(get_db())):
+def get_report(report_id: str, db: Session = Depends(get_db)):
     """Get a specific report by ID (format: YYYY-WXX)"""
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
@@ -75,7 +75,7 @@ def get_report(report_id: str, db: Session = next(get_db())):
     return report.to_dict()
 
 @app.put("/api/reports/{report_id}", response_model=ReportResponse)
-def update_report(report_id: str, update: ReportUpdate, db: Session = next(get_db())):
+def update_report(report_id: str, update: ReportUpdate, db: Session = Depends(get_db)):
     """Update a report's incidents, status, or notes"""
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
@@ -94,7 +94,7 @@ def update_report(report_id: str, update: ReportUpdate, db: Session = next(get_d
     return report.to_dict()
 
 @app.delete("/api/reports/{report_id}")
-def delete_report(report_id: str, db: Session = next(get_db())):
+def delete_report(report_id: str, db: Session = Depends(get_db)):
     """Delete a report"""
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
@@ -107,7 +107,7 @@ def delete_report(report_id: str, db: Session = next(get_db())):
 # ============ Additional Operations ============
 
 @app.post("/api/reports/{report_id}/duplicate", response_model=ReportResponse)
-def duplicate_report(report_id: str, new_week: int = Query(...), db: Session = next(get_db())):
+def duplicate_report(report_id: str, new_week: int = Query(...), db: Session = Depends(get_db)):
     """Duplicate a report to a new week"""
     source_report = db.query(Report).filter(Report.id == report_id).first()
     if not source_report:
@@ -135,7 +135,7 @@ def duplicate_report(report_id: str, new_week: int = Query(...), db: Session = n
     return new_report.to_dict()
 
 @app.get("/api/reports/{report_id}/export")
-def export_report(report_id: str, db: Session = next(get_db())):
+def export_report(report_id: str, db: Session = Depends(get_db)):
     """Export a report as JSON"""
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
@@ -144,7 +144,7 @@ def export_report(report_id: str, db: Session = next(get_db())):
     return report.to_dict()
 
 @app.post("/api/reports/import")
-def import_report(report_data: dict, db: Session = next(get_db())):
+def import_report(report_data: dict, db: Session = Depends(get_db)):
     """Import a report from JSON"""
     try:
         report_id = f"{report_data['year']}-W{str(report_data['week']).zfill(2)}"
