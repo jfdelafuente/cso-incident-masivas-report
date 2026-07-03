@@ -56,7 +56,7 @@ body { background: #26241F; }
   align-items: center;
   justify-content: center;
 }
-.preview-deck {
+#deck {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -64,11 +64,11 @@ body { background: #26241F; }
   transform-origin: top center;
   width: 1280px;
 }
-.slide-wrapper {
-  width: 100%;
+.mo-slide {
   display: none;
+  width: 100%;
 }
-.slide-wrapper.active {
+.mo-slide.active {
   display: block;
 }
 .mo-slide {
@@ -110,8 +110,8 @@ body { background: #26241F; }
   </div>
 
   <!-- Slides -->
-  <div class="preview-stage">
-    <div id="previewDeck" class="preview-deck"></div>
+  <div class="preview-stage" id="stage">
+    <div id="deck" style="display:flex; flex-direction:column; align-items:center; gap:22px; transform-origin:top center; width:1280px; margin:0 auto;"></div>
   </div>
 
   <div class="keyboard-hint">
@@ -194,20 +194,16 @@ const PreviewApp = {
   },
 
   displaySlides() {
-    const deckEl = document.getElementById('previewDeck');
-    if (!deckEl || !App || !App.els.deck) return;
+    if (!App || !App.els.deck) return;
 
-    // Get all slides from App's deck (which has proper styling)
+    // Count slides rendered by App
     const slides = App.els.deck.querySelectorAll('.mo-slide');
     this.totalSlides = slides.length;
 
-    deckEl.innerHTML = '';
-    slides.forEach((slide, idx) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'slide-wrapper' + (idx === 0 ? ' active' : '');
-      wrapper.innerHTML = slide.outerHTML;
-      deckEl.appendChild(wrapper);
-    });
+    // Show first slide
+    if (this.totalSlides > 0) {
+      this.goToSlide(0);
+    }
   },
 
   updateCounter() {
@@ -233,16 +229,16 @@ const PreviewApp = {
   },
 
   goToSlide(idx) {
-    document.querySelectorAll('.slide-wrapper').forEach(el => {
+    document.querySelectorAll('.mo-slide').forEach(el => {
       el.classList.remove('active');
     });
-    document.querySelectorAll('.slide-wrapper')[idx].classList.add('active');
+    document.querySelectorAll('.mo-slide')[idx].classList.add('active');
     this.currentSlide = idx;
     this.updateCounter();
     this.updateButtonState();
 
     // Scroll to slide
-    document.querySelectorAll('.slide-wrapper')[idx].scrollIntoView({ behavior: 'smooth' });
+    document.querySelectorAll('.mo-slide')[idx].scrollIntoView({ behavior: 'smooth' });
   },
 
   handleKeyboard(e) {
