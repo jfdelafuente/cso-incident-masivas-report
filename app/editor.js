@@ -7,12 +7,14 @@ const ReportEditor = {
   currentReportId: null,
   autoSaveTimer: null,
   isDirty: false,
+  isViewMode: false,
 
   async init() {
     const params = new URLSearchParams(window.location.search);
     const reportId = params.get('report');
+    this.isViewMode = params.has('view');
 
-    console.log('[ReportEditor] URL params:', { reportId, fullUrl: window.location.href });
+    console.log('[ReportEditor] URL params:', { reportId, fullUrl: window.location.href, isViewMode: this.isViewMode });
 
     if (reportId) {
       console.log('[ReportEditor] Cargando informe:', reportId);
@@ -22,8 +24,52 @@ const ReportEditor = {
       this.initializeNew();
     }
 
-    // Setup auto-save on changes
-    this.setupAutoSave();
+    // Setup auto-save on changes (only if not in view mode)
+    if (!this.isViewMode) {
+      this.setupAutoSave();
+      this.enableEditControls();
+    } else {
+      this.disableEditControls();
+    }
+  },
+
+  disableEditControls() {
+    console.log('[ReportEditor] Desactivando controles de edición (modo visualización)');
+    // Disable all input fields
+    const inputs = document.querySelectorAll('input, textarea, select');
+    inputs.forEach(el => {
+      if (el.id !== 'reportStatusSelect') el.disabled = true;
+    });
+
+    // Disable buttons
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(btn => {
+      if (!btn.textContent.includes('Volver') && !btn.textContent.includes('←')) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      }
+    });
+
+    // Update header
+    const reportTitle = document.getElementById('reportTitle');
+    if (reportTitle) reportTitle.textContent += ' (Visualización)';
+
+    const statusSelect = document.getElementById('reportStatusSelect');
+    if (statusSelect) statusSelect.disabled = true;
+  },
+
+  enableEditControls() {
+    console.log('[ReportEditor] Activando controles de edición');
+    // Enable all inputs
+    const inputs = document.querySelectorAll('input, textarea, select');
+    inputs.forEach(el => el.disabled = false);
+
+    // Enable buttons
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(btn => {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    });
   },
 
   async loadReport(reportId) {
