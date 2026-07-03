@@ -311,8 +311,9 @@
     // ---- sidebar rendering ----
     renderSidebarList() {
       const c = this.computed();
-      this.els.incCount.textContent = c.count;
-      this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) => this.rowTemplate(inc, idx)).join('');
+      // Only render if elements exist (they may not in preview/other pages)
+      if (this.els.incCount) this.els.incCount.textContent = c.count;
+      if (this.els.incidentsList) this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) => this.rowTemplate(inc, idx)).join('');
     },
     rowTemplate(inc, idx) {
       const isOpen = this.state.openIdx === idx;
