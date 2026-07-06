@@ -129,12 +129,20 @@ const HomePage = {
         </div>
 
         <div class="report-actions">
-          <a href="editor.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
-          <button class="btn btn-secondary btn-small" onclick="HomePage.openDuplicateModal('${report.id}')">Duplicar</button>
-          <button class="btn btn-secondary btn-small" onclick="HomePage.downloadPDF('${report.id}')">PDF</button>
-          <button class="btn btn-secondary btn-small" onclick="HomePage.downloadPPTX('${report.id}')">PPT</button>
-          <button class="btn btn-danger btn-small" onclick="HomePage.deleteReport('${report.id}')">Borrar</button>
-          <a href="preview.html?report=${report.id}" class="btn btn-success btn-small">👁 Ver Informe</a>
+          <div class="action-row-primary">
+            <a href="editor.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
+            <a href="preview.html?report=${report.id}" class="btn btn-success btn-small">👁 Ver Informe</a>
+          </div>
+          <select class="action-select" onchange="HomePage.handleExportAction('${report.id}', this.value); this.value='';">
+            <option value="" selected disabled>Exportar ▾</option>
+            <option value="pdf">📄 Descargar PDF</option>
+            <option value="pptx">📊 Descargar PowerPoint</option>
+            <option value="duplicate">📋 Duplicar informe</option>
+          </select>
+          <select class="action-select danger" onchange="HomePage.handleDeleteAction('${report.id}', this.value); this.value='';">
+            <option value="" selected disabled>Borrar ▾</option>
+            <option value="delete">🗑 Confirmar borrado</option>
+          </select>
         </div>
       </div>
     `).join('');
@@ -232,6 +240,16 @@ const HomePage = {
     } finally {
       btn.disabled = false;
     }
+  },
+
+  handleExportAction(reportId, action) {
+    if (action === 'pdf') this.downloadPDF(reportId);
+    else if (action === 'pptx') this.downloadPPTX(reportId);
+    else if (action === 'duplicate') this.openDuplicateModal(reportId);
+  },
+
+  handleDeleteAction(reportId, action) {
+    if (action === 'delete') this.deleteReport(reportId);
   },
 
   async deleteReport(reportId) {

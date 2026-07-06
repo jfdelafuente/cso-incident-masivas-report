@@ -220,29 +220,46 @@ select.status-badge {
 }
 
 .report-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.report-actions .btn {
+.action-row-primary {
+  display: flex;
+  gap: 8px;
+}
+
+.action-row-primary .btn {
   padding: 8px 12px;
   font-size: 12px;
   justify-content: center;
+}
+
+.action-row-primary .btn-primary {
+  flex: none;
+}
+
+.action-row-primary .btn-success {
+  flex: 1;
+}
+
+.action-select {
   width: 100%;
-}
-
-.report-actions .btn-success {
-  grid-column: 1 / -1;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.report-actions .btn-danger {
-  grid-column: 1 / -1;
   padding: 8px 12px;
+  border: 1px solid #DEDAD3;
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  background: #fff;
+  color: #26241F;
+  cursor: pointer;
+}
+
+.action-select.danger {
+  border-color: #D43A2F;
+  color: #D43A2F;
 }
 
 .empty-state {
