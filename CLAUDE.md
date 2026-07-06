@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 "Automatización de reportes semanales" — an internal MASORANGE tool that turns a weekly list of IT/RED incidents into a styled slide deck (web preview, PDF, and editable PowerPoint), replacing a manually-built PowerPoint. Vanilla HTML/CSS/JS frontend + a small FastAPI backend for persistence. No frontend build step, no test suite, no linter configured.
 
-The `project/` and `chats/` directories are the original Claude Design handoff bundle (HTML/CSS/JS mockups + the design conversation that produced them). They are historical reference for *why* the UI looks the way it does, not code that runs — the real implementation lives in `app/` and `backend/`.
+The original Claude Design handoff bundle (HTML/CSS/JS mockups + the design conversation that produced them, explaining *why* the UI looks the way it does) lived in `project/`/`chats/` early in this repo's history and was removed once no longer needed — check `git log` before that removal if you need the original design rationale. The real implementation lives in `app/` and `backend/`.
 
 ## Running locally
 

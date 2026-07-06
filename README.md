@@ -1,25 +1,23 @@
-# CODING AGENTS: READ THIS FIRST
+# Automatización de reportes semanales — Reportes de Incidencias
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+Herramienta interna de MASORANGE que convierte el listado semanal de incidencias IT + RED en un dossier de slides con estilo corporativo (vista web, PDF y PowerPoint editable), sustituyendo el PowerPoint que antes se montaba a mano.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+Frontend en HTML/CSS/JS puro (sin build) + backend FastAPI con SQLite para persistencia.
 
-## What you should do — IMPORTANT
+## Empezar
 
-**Read the chat transcripts first.** There are 2 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+- **Ejecutar en local**: ver [`START_LOCAL.md`](START_LOCAL.md).
+- **Arquitectura del código** (frontend/backend, cómo encajan las piezas): ver [`CLAUDE.md`](CLAUDE.md).
 
-**Read `project/Reporte Incidencias.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+## Desplegar y operar
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
+- **Desplegar/actualizar en staging**: ver [`STAGING_DEPLOYMENT.md`](STAGING_DEPLOYMENT.md) (flujo real, `deploy.sh`) y [`DEPLOYMENT.md`](DEPLOYMENT.md) (referencia manual paso a paso).
+- **Operación del día a día** (arrancar/parar el backend, backups, restauración, rotación de logs, chequeo de salud, resolución de problemas): ver [`MANUAL_OPERADOR.md`](MANUAL_OPERADOR.md).
 
-## About the design files
+## Estructura
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
+- `app/` — frontend estático (dashboard, editor, vista previa).
+- `backend/` — API FastAPI + SQLite (`service.sh` para gestionarla, `maintenance.sh` para backup/mantenimiento).
+- `deploy.sh`, `nginx.conf` — despliegue a staging.
 
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
-
-## Bundle contents
-
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `Automatización de reportes semanales` project files (HTML prototypes, assets, components)
+No hay build de frontend, ni suite de tests, ni linter configurado en este repo.
