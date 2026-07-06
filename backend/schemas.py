@@ -15,6 +15,7 @@ class IncidentBase(BaseModel):
     metrics: str
     cause: str
     solution: str
+    actionPoints: str = ""
     cFTTH: str
     cMobile: str
     brands: str

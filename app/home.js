@@ -30,6 +30,14 @@ function metricsArr(s) {
     return p.length > 1 ? { label: p[0].trim(), value: p.slice(1).join('|').trim() } : { label: '', value: l };
   });
 }
+function actionPointsArr(s) {
+  return String(s || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const p = l.split('|');
+    return p.length > 2
+      ? { ap: p[0].trim(), tipo: p[1].trim(), desc: p.slice(2).join('|').trim() }
+      : { ap: '', tipo: '', desc: l };
+  });
+}
 
 const HomePage = {
   reports: [],
@@ -439,6 +447,13 @@ const HomePage = {
                   <p>${it.solution || '—'}</p>
                 </div>
 
+                <div class="incident-section" style="margin-top: 15px;">
+                  <h4>ACTION POINTS</h4>
+                  ${actionPointsArr(it.actionPoints).length
+                    ? actionPointsArr(it.actionPoints).map(ap => `<p><strong>${[ap.ap, ap.tipo].filter(Boolean).join(' · ')}:</strong> ${ap.desc}</p>`).join('')
+                    : '<p>—</p>'}
+                </div>
+
                 <div class="brands">
                   <strong>Marcas afectadas:</strong> ${it.brands || '—'}
                   <div class="flags">
@@ -588,7 +603,24 @@ const HomePage = {
         sl.addText(it.cause || '', { x: 5.25, y: colY + 0.65, w: 3.55, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
         sl.addText('SOLUCIÓN', { x: 9.15, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
         sl.addShape(P.ShapeType.line, { x: 9.15, y: colY + 0.4, w: 1.0, h: 0, line: { color: '1D8754', width: 2.5 } });
-        sl.addText(it.solution || '', { x: 9.15, y: colY + 0.65, w: 3.65, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+        const aps = actionPointsArr(it.actionPoints);
+        const apRowH = 0.58;
+        // Estimate the solution text's actual height instead of reserving the
+        // whole column (colH) for it — otherwise, for a short solution, the
+        // action point cards get pushed down near/past the footer bar and end
+        // up hidden behind it (drawn later = on top in PowerPoint's z-order).
+        const solText = it.solution || '';
+        const estSolutionLines = Math.max(1, Math.ceil(solText.length / 42));
+        const solutionH = Math.min(colH - 0.4, Math.max(0.4, estSolutionLines * 0.22 + 0.1));
+        sl.addText(solText, { x: 9.15, y: colY + 0.65, w: 3.65, h: solutionH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+        let apY = colY + 0.65 + solutionH + 0.1;
+        aps.forEach(ap => {
+          sl.addShape(P.ShapeType.roundRect, { x: 9.15, y: apY, w: 3.65, h: apRowH - 0.08, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
+          const apHeader = [ap.ap, ap.tipo].filter(Boolean).join(' · ');
+          sl.addText(apHeader, { x: 9.3, y: apY + 0.03, w: 3.4, h: 0.22, color: '1D8754', fontSize: 10.5, bold: true, fontFace: 'Arial' });
+          sl.addText(ap.desc, { x: 9.3, y: apY + 0.24, w: 3.4, h: apRowH - 0.32, color: '26241F', fontSize: 10.5, fontFace: 'Arial', valign: 'top' });
+          apY += apRowH;
+        });
         sl.addShape(P.ShapeType.rect, { x: 0, y: 6.95, w: 13.333, h: 0.55, fill: { color: 'F7F6F4' } });
         sl.addText('MARCAS:  ' + (it.brands || '—'), { x: 0.55, y: 6.95, w: 8, h: 0.55, color: '5C5852', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
         const flags = [];
