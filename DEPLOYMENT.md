@@ -178,7 +178,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 
 ### Base de datos
 - [ ] `ls -la /infocodes/project/cso-incident-masivas-report/backend/reports.db` existe
-- [ ] Puedes consultar: `sqlite3 reports.db "SELECT COUNT(*) FROM report;"`
+- [ ] Puedes consultar: `sqlite3 reports.db "SELECT COUNT(*) FROM reports;"`
 
 ---
 
@@ -246,8 +246,8 @@ watch -n 1 "cd /infocodes/project/cso-incident-masivas-report/backend && ./servi
 **Estadísticas de base de datos:**
 ```bash
 sqlite3 /infocodes/project/cso-incident-masivas-report/backend/reports.db <<EOF
-SELECT 'Reportes' as tabla, COUNT(*) as cantidad FROM report;
-SELECT 'Usuarios' as tabla, COUNT(*) as cantidad FROM report WHERE createdBy IS NOT NULL;
+SELECT 'Reportes' as tabla, COUNT(*) as cantidad FROM reports;
+SELECT 'Usuarios' as tabla, COUNT(*) as cantidad FROM reports WHERE createdBy IS NOT NULL;
 .tables
 .schema
 EOF

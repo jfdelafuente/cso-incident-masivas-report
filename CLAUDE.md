@@ -45,6 +45,8 @@ There is no automated test suite and no lint/format tooling in this repo — don
 
 The staging shell has `http_proxy`/`https_proxy` set to a corporate proxy, and `curl` honors that even for `localhost`/`127.0.0.1` — the proxy then returns `403 Forbidden` for loopback destinations, making a perfectly healthy backend look dead. `service.sh`'s healthcheck curls always pass `--noproxy '*'`; do the same in any ad-hoc `curl` against localhost on that server, or the check will fail for the wrong reason.
 
+**Maintenance (`backend/maintenance.sh`)**: same subcommand-script pattern as `service.sh` — `./maintenance.sh {backup|restore|rotate-logs|healthcheck}`. `backup` uses SQLite's Online Backup API (`sqlite3 reports.db ".backup 'dest'"`, safe on a live DB, unlike `cp`) into `/infocodes/backups/cso-incident-masivas-report/` (outside the repo tree), keeping the last 7. `rotate-logs` copy-truncates `backend.log` without restarting the backend (its append-mode fd survives truncation of the same inode). `healthcheck` is the single command for "is everything OK" (backend, nginx, disk, DB integrity, log size, backup staleness). Day-2 operator procedures (cron lines, restore walkthrough, troubleshooting) live in `MANUAL_OPERADOR.md`, not here — read that before writing new ops tooling so you don't duplicate it. Note: the actual SQLite table is `reports` (plural, see `models.py`'s `__tablename__`) — `DEPLOYMENT.md` used to say `report` (singular) in its example queries, which was a real bug (`no such table: report`).
+
 ## Deployment
 
 Full details in `DEPLOYMENT.md` (manual/reference walkthrough) and `STAGING_DEPLOYMENT.md` (the actual staging flow) — read those before changing deploy behavior. Key facts that aren't obvious from a typical FastAPI+Nginx setup:

@@ -26,5 +26,7 @@ reports.db
 *.sqlite
 *.sqlite3
 backend.log
+backend.log.*
 backend.pid
+maintenance.log
 nohup.out
