@@ -34,6 +34,7 @@ function metricsArr(s) {
 const HomePage = {
   reports: [],
   currentEditId: null,
+  statusFilter: 'all',
 
   async init() {
     console.log('Inicializando HomePage...');
@@ -63,6 +64,11 @@ const HomePage = {
     document.getElementById('duplicateForm').addEventListener('submit', (e) => this.handleDuplicateSubmit(e));
 
     document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
+
+    document.getElementById('statusFilter').addEventListener('change', (e) => {
+      this.statusFilter = e.target.value;
+      this.renderReports();
+    });
   },
 
   async loadReports() {
@@ -78,19 +84,33 @@ const HomePage = {
   renderReports() {
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
+    const noResultsEl = document.getElementById('noResultsState');
 
     if (this.reports.length === 0) {
       listEl.innerHTML = '';
+      noResultsEl.style.display = 'none';
       emptyEl.style.display = 'block';
       return;
     }
 
     emptyEl.style.display = 'none';
-    listEl.innerHTML = this.reports.map(report => `
+
+    const filtered = this.statusFilter === 'all'
+      ? this.reports
+      : this.reports.filter(r => r.status === this.statusFilter);
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '';
+      noResultsEl.style.display = 'block';
+      return;
+    }
+    noResultsEl.style.display = 'none';
+
+    listEl.innerHTML = filtered.map(report => `
       <div class="report-card">
         <div class="report-header">
           <div class="report-id">${report.id}</div>
-          <select class="status-select" onchange="HomePage.changeStatus('${report.id}', this.value)" style="padding:4px 8px; border-radius:4px; border:none; font-size:11px; font-weight:600; text-transform:uppercase; cursor:pointer;">
+          <select class="status-badge status-${report.status}" onchange="HomePage.changeStatus('${report.id}', this.value)">
             <option value="draft" ${report.status === 'draft' ? 'selected' : ''}>Draft</option>
             <option value="reviewed" ${report.status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
             <option value="published" ${report.status === 'published' ? 'selected' : ''}>Published</option>
