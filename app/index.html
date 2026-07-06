@@ -246,20 +246,51 @@ select.status-badge {
 
 .action-select {
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 32px 8px 12px;
   border: 1px solid #DEDAD3;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
-  background: #fff;
+  background-color: #fff;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="%235C5852" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
   color: #26241F;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 0.2s ease;
+}
+
+.action-select:hover {
+  background-color: #F7F6F4;
+  border-color: #B8B2A9;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.action-select:focus {
+  outline: none;
+  border-color: #FF7900;
+  box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.15);
 }
 
 .action-select.danger {
-  border-color: #D43A2F;
+  border-color: #F3C9C5;
   color: #D43A2F;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="%23D43A2F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+}
+
+.action-select.danger:hover {
+  background-color: #FDEDEC;
+  border-color: #D43A2F;
+  box-shadow: 0 2px 6px rgba(212, 58, 47, 0.15);
+}
+
+.action-select.danger:focus {
+  border-color: #D43A2F;
+  box-shadow: 0 0 0 3px rgba(212, 58, 47, 0.15);
 }
 
 .empty-state {

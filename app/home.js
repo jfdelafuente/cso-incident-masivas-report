@@ -134,13 +134,13 @@ const HomePage = {
             <a href="preview.html?report=${report.id}" class="btn btn-success btn-small">👁 Ver Informe</a>
           </div>
           <select class="action-select" onchange="HomePage.handleExportAction('${report.id}', this.value); this.value='';">
-            <option value="" selected disabled>Exportar ▾</option>
+            <option value="" selected disabled>Exportar</option>
             <option value="pdf">📄 Descargar PDF</option>
             <option value="pptx">📊 Descargar PowerPoint</option>
             <option value="duplicate">📋 Duplicar informe</option>
           </select>
           <select class="action-select danger" onchange="HomePage.handleDeleteAction('${report.id}', this.value); this.value='';">
-            <option value="" selected disabled>Borrar ▾</option>
+            <option value="" selected disabled>Borrar</option>
             <option value="delete">🗑 Confirmar borrado</option>
           </select>
         </div>
