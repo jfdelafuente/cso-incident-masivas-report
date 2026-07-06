@@ -192,13 +192,18 @@ def export_report(report_id: str, db: Session = Depends(get_db)):
 @app.post("/api/reports/import")
 def import_report(report_data: dict, db: Session = Depends(get_db)):
     """Import a report from JSON"""
+    required_fields = ['year', 'week', 'range', 'dept']
+    missing = [f for f in required_fields if f not in report_data]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Faltan campos obligatorios en el JSON: {', '.join(missing)}")
+
+    report_id = f"{report_data['year']}-W{str(report_data['week']).zfill(2)}"
+
+    existing = db.query(Report).filter(Report.id == report_id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Report for {report_id} already exists")
+
     try:
-        report_id = f"{report_data['year']}-W{str(report_data['week']).zfill(2)}"
-
-        existing = db.query(Report).filter(Report.id == report_id).first()
-        if existing:
-            raise HTTPException(status_code=409, detail=f"Report for {report_id} already exists")
-
         db_report = Report(
             id=report_id,
             year=report_data['year'],

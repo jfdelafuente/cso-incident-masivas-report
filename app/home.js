@@ -327,7 +327,7 @@ const HomePage = {
             .severity-badge { display: inline-block; padding: 5px 12px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 11px; margin-bottom: 10px; }
             .incident-content { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
             .incident-section h4 { color: #26241F; font-size: 13px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #FF7900; }
-            .incident-section p { font-size: 11px; line-height: 1.5; color: #5C5852; }
+            .incident-section p { font-size: 11px; line-height: 1.5; color: #5C5852; white-space: pre-line; }
             .brands { margin-top: 15px; padding-top: 15px; border-top: 1px solid #DEDAD3; font-size: 11px; }
             .flags { margin-top: 10px; }
             .flag { font-size: 11px; margin: 5px 0; }
@@ -648,7 +648,13 @@ const HomePage = {
     reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target.result);
-        await ApiClient.importReport(data);
+        // Tolerate the editor's own "Guardar JSON" export shape, which nests
+        // year/week/range/dept under `meta` instead of at the top level
+        // (the backend's /api/reports/import expects them flat).
+        const payload = data.meta
+          ? Object.assign({}, data.meta, { incidents: data.incidents || [] })
+          : data;
+        await ApiClient.importReport(payload);
         alert('Informe importado exitosamente');
         await this.loadReports();
         document.getElementById('fileInput').value = '';

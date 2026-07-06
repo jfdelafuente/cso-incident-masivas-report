@@ -519,7 +519,7 @@
             ).join('') +
           '</div>'
         : '';
-      const impactHtml = hasImpact ? '<div style="font-size:15px; line-height:1.5; color:#26241F;">' + esc(inc.impact) + '</div>' : '';
+      const impactHtml = hasImpact ? '<div style="font-size:15px; line-height:1.5; color:#26241F; white-space:pre-line;">' + esc(inc.impact) + '</div>' : '';
       const actionPointsHtml = hasActionPoints
         ? '<div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">' +
             actionPointList.map(a =>
@@ -563,11 +563,11 @@
             '</div>' +
             '<div style="padding:30px 32px; border-right:1px solid #EFEDE9; display:flex; flex-direction:column;">' +
               '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#26241F; padding-bottom:8px; border-bottom:2px solid #000; margin-bottom:16px; align-self:flex-start;">Causa</div>' +
-              '<div style="font-size:15px; line-height:1.5; color:#26241F;">' + esc(inc.cause) + '</div>' +
+              '<div style="font-size:15px; line-height:1.5; color:#26241F; white-space:pre-line;">' + esc(inc.cause) + '</div>' +
             '</div>' +
             '<div style="padding:30px 32px; display:flex; flex-direction:column;">' +
               '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#26241F; padding-bottom:8px; border-bottom:2px solid #1D8754; margin-bottom:16px; align-self:flex-start;">Solución</div>' +
-              '<div style="font-size:15px; line-height:1.5; color:#26241F;">' + esc(inc.solution) + '</div>' +
+              '<div style="font-size:15px; line-height:1.5; color:#26241F; white-space:pre-line;">' + esc(inc.solution) + '</div>' +
               actionPointsHtml +
             '</div>' +
           '</div>' +
