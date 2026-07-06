@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import List, Optional, Any
+from typing import List, Optional
 from datetime import datetime
 
 class IncidentBase(BaseModel):
@@ -18,8 +18,8 @@ class IncidentBase(BaseModel):
     cFTTH: str
     cMobile: str
     brands: str
-    ministry: bool
-    platform: bool
+    ministry: bool = False
+    platform: bool = False
 
 class ReportCreate(BaseModel):
     year: int
@@ -32,7 +32,7 @@ class ReportCreate(BaseModel):
     notes: Optional[str] = None
 
 class ReportUpdate(BaseModel):
-    incidents: Optional[Any] = None
+    incidents: Optional[List[IncidentBase]] = None
     status: Optional[str] = None
     notes: Optional[str] = None
 

@@ -128,7 +128,7 @@ def update_report(report_id: str, update: ReportUpdate, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Report not found")
 
     if update.incidents is not None:
-        report.incidents = update.incidents
+        report.incidents = [inc.model_dump() for inc in update.incidents]
     if update.status is not None:
         report.status = update.status
     if update.notes is not None:
