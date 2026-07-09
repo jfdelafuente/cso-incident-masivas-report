@@ -19,6 +19,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+source "$SCRIPT_DIR/lib.sh"
 
 DB_FILE="$SCRIPT_DIR/reports.db"
 LOG_FILE="$SCRIPT_DIR/backend.log"
@@ -31,17 +32,6 @@ DISK_WARN_PCT=80
 DISK_FAIL_PCT=95
 LOG_SIZE_WARN_BYTES=52428800
 BACKUP_STALE_WARN_DAYS=8
-
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log_info()    { echo -e "${BLUE}i  $1${NC}"; }
-log_success() { echo -e "${GREEN}OK $1${NC}"; }
-log_error()   { echo -e "${RED}!! $1${NC}"; }
-log_warn()    { echo -e "${YELLOW}?? $1${NC}"; }
 
 file_size() {
     stat -c%s "$1" 2>/dev/null || echo 0

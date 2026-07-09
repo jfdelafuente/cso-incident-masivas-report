@@ -91,13 +91,6 @@ const ApiClient = {
     });
   },
 
-  async importReport(reportData) {
-    return this.request('/api/reports/import', {
-      method: 'POST',
-      body: JSON.stringify(reportData),
-    });
-  },
-
   async healthCheck() {
     try {
       return await this.request('/api/health', { method: 'GET' });
