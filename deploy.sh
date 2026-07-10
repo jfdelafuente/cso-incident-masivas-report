@@ -5,6 +5,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/backend/lib.sh"
+
 echo "🚀 Iniciando despliegue de Reportes de Incidencias"
 echo "=================================================="
 
@@ -13,25 +16,6 @@ DEPLOY_PATH="/infocodes/project/cso-incident-masivas-report"
 REPO_URL="https://github.com/jfdelafuente/cso-incident-masivas-report.git"
 BACKEND_PORT=8000
 FRONTEND_PATH="$DEPLOY_PATH/app"
-
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# Función para imprimir
-log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
-
-log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
 
 # 1. Clonar o actualizar repositorio
 log_info "Paso 1: Clonar/actualizar repositorio"

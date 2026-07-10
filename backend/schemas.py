@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -23,13 +23,20 @@ class IncidentBase(BaseModel):
     platform: bool = False
 
 class ReportCreate(BaseModel):
+    # Accepts either `created_by` or `createdBy` -- the latter is what a
+    # previously-exported report (GET .../export, or the editor's "Guardar
+    # JSON") has, since ReportResponse below outputs camelCase. This model
+    # doubles as the import payload (see create_report()), so it needs to
+    # round-trip its own export format.
+    model_config = ConfigDict(populate_by_name=True)
+
     year: int
     week: int
     range: str
     dept: str
     incidents: List[IncidentBase] = []
     status: str = "draft"
-    created_by: Optional[str] = None
+    created_by: Optional[str] = Field(default=None, alias="createdBy")
     notes: Optional[str] = None
 
 class ReportUpdate(BaseModel):

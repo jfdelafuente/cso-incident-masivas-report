@@ -62,8 +62,9 @@ Una vez que el servidor esté corriendo:
 |--------|------|-------------|
 | POST | `/api/reports/{report_id}/duplicate?new_week=27` | Duplicar informe a nueva semana |
 | GET | `/api/reports/{report_id}/export` | Exportar como JSON |
-| POST | `/api/reports/import` | Importar desde JSON |
 | GET | `/api/health` | Health check |
+
+Importar un informe exportado es simplemente `POST /api/reports` con ese JSON — `ReportCreate` acepta tanto `created_by` como `createdBy` (el formato de exportación), no hay un endpoint de import separado.
 
 ## 🗄️ Base de datos
 

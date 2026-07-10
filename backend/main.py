@@ -10,7 +10,7 @@ import os
 import sys
 
 from models import Base, Report
-from schemas import ReportCreate, ReportUpdate, ReportResponse, IncidentBase
+from schemas import ReportCreate, ReportUpdate, ReportResponse
 
 # Database setup
 DATABASE_URL = "sqlite:///./reports.db"
@@ -69,7 +69,9 @@ async def upload_dashboard_csv(file: UploadFile = File(...), type: str = Form("m
 
 @app.post("/api/reports", response_model=ReportResponse)
 def create_report(report: ReportCreate, db: Session = Depends(get_db)):
-    """Create a new report for a specific week"""
+    """Create a new report for a specific week. Also used to import a
+    previously-exported report (see ReportCreate's field aliases) -- there's
+    no separate import endpoint since it would do exactly the same thing."""
     report_id = f"{report.year}-W{str(report.week).zfill(2)}"
 
     existing = db.query(Report).filter(Report.id == report_id).first()
@@ -82,7 +84,7 @@ def create_report(report: ReportCreate, db: Session = Depends(get_db)):
         week=report.week,
         range=report.range,
         dept=report.dept,
-        incidents=report.incidents if report.incidents else [],
+        incidents=[inc.model_dump() for inc in report.incidents],
         status=report.status,
         created_by=report.created_by,
         notes=report.notes,
@@ -174,39 +176,6 @@ def export_report(report_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Report not found")
 
     return report.to_dict()
-
-@app.post("/api/reports/import")
-def import_report(report_data: dict, db: Session = Depends(get_db)):
-    """Import a report from JSON"""
-    required_fields = ['year', 'week', 'range', 'dept']
-    missing = [f for f in required_fields if f not in report_data]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Faltan campos obligatorios en el JSON: {', '.join(missing)}")
-
-    report_id = f"{report_data['year']}-W{str(report_data['week']).zfill(2)}"
-
-    existing = db.query(Report).filter(Report.id == report_id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Report for {report_id} already exists")
-
-    try:
-        db_report = Report(
-            id=report_id,
-            year=report_data['year'],
-            week=report_data['week'],
-            range=report_data['range'],
-            dept=report_data['dept'],
-            incidents=report_data.get('incidents', []),
-            status=report_data.get('status', 'draft'),
-            created_by=report_data.get('createdBy'),
-            notes=report_data.get('notes'),
-        )
-        db.add(db_report)
-        db.commit()
-        db.refresh(db_report)
-        return db_report.to_dict()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 # ============ Health Check ============
 
