@@ -37,11 +37,11 @@ const HomePage = {
     document.getElementById('duplicateForm').addEventListener('submit', (e) => this.handleDuplicateSubmit(e));
 
     document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
+  },
 
-    document.getElementById('statusFilter').addEventListener('change', (e) => {
-      this.statusFilter = e.target.value;
-      this.renderReports();
-    });
+  setStatusFilter(value) {
+    this.statusFilter = value;
+    this.renderReports();
   },
 
   async loadReports() {
@@ -66,43 +66,54 @@ const HomePage = {
   renderReports() {
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
-    const noResultsEl = document.getElementById('noResultsState');
 
     if (this.reports.length === 0) {
       listEl.innerHTML = '';
-      noResultsEl.style.display = 'none';
       emptyEl.style.display = 'block';
       return;
     }
 
     emptyEl.style.display = 'none';
 
-    const filtered = this.statusFilter === 'all'
-      ? this.reports
-      : this.reports.filter(r => r.status === this.statusFilter);
-
-    if (filtered.length === 0) {
-      listEl.innerHTML = '';
-      noResultsEl.style.display = 'block';
-      return;
-    }
-    noResultsEl.style.display = 'none';
-
+    // The status filter only narrows "Otras semanas" -- the current week's
+    // report is always shown regardless of it, so it can't ever hide the
+    // one report you're most likely here to check on.
     const { year: curYear, week: curWeek } = this.currentYearWeek();
     const isCurrentWeek = (r) => r.year === curYear && r.week === curWeek;
-    const currentWeekReports = filtered.filter(isCurrentWeek);
-    const otherReports = filtered.filter(r => !isCurrentWeek(r));
+    const currentWeekReports = this.reports.filter(isCurrentWeek);
+    const allOtherReports = this.reports.filter(r => !isCurrentWeek(r));
+    const otherReportsFiltered = this.statusFilter === 'all'
+      ? allOtherReports
+      : allOtherReports.filter(r => r.status === this.statusFilter);
 
     let html = '';
     if (currentWeekReports.length) {
       html += '<div class="reports-section-title">Semana actual</div>';
       html += `<div class="reports-grid">${currentWeekReports.map(r => this.reportCardHtml(r, true)).join('')}</div>`;
     }
-    if (otherReports.length) {
+    if (allOtherReports.length) {
       html += currentWeekReports.length ? '<div class="reports-section-title">Otras semanas</div>' : '';
-      html += this.reportsTableHtml(otherReports);
+      html += this.statusFilterHtml();
+      html += otherReportsFiltered.length
+        ? this.reportsTableHtml(otherReportsFiltered)
+        : '<div class="no-results">Ningún informe de otras semanas coincide con el filtro seleccionado.</div>';
     }
     listEl.innerHTML = html;
+  },
+
+  statusFilterHtml() {
+    const opt = (value, label) =>
+      `<option value="${value}" ${this.statusFilter === value ? 'selected' : ''}>${label}</option>`;
+    return `
+      <div class="reports-table-controls">
+        <select class="status-filter" onchange="HomePage.setStatusFilter(this.value)">
+          ${opt('all', 'Todos los estados')}
+          ${opt('draft', 'Borrador')}
+          ${opt('reviewed', 'Revisado')}
+          ${opt('published', 'Publicado')}
+        </select>
+      </div>
+    `;
   },
 
   reportsTableHtml(reports) {

@@ -150,6 +150,12 @@ header {
   border-bottom: 1px solid #DEDAD3;
 }
 
+.reports-table-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .reports-table {
   width: 100%;
   border-collapse: collapse;
@@ -484,18 +490,9 @@ select.status-badge {
   <div class="controls">
     <button class="btn btn-primary" id="btnNewReport">+ Nuevo Informe</button>
     <button class="btn btn-secondary" id="btnImportReport">Importar JSON</button>
-    <select class="status-filter" id="statusFilter">
-      <option value="all">Todos los estados</option>
-      <option value="draft">Borrador</option>
-      <option value="reviewed">Revisado</option>
-      <option value="published">Publicado</option>
-    </select>
   </div>
 
   <div id="reportsList"></div>
-  <div id="noResultsState" class="no-results" style="display:none;">
-    <p>Ningún informe coincide con el filtro seleccionado.</p>
-  </div>
 
   <div id="emptyState" class="empty-state">
     <h2>No hay informes</h2>
