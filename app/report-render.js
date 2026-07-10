@@ -5,6 +5,15 @@
 // in-memory editor state, the other from a fetched report. Load this
 // script before app.js/home.js in every page that needs it, and pull
 // what you need off `window.ReportRender`.
+//
+// Wrapped in an IIFE so these internal names (sev, num, metricsArr...)
+// don't leak into the shared global scope that all non-module <script>
+// tags on the page have to coexist in -- app.js already shadows them
+// safely inside its own IIFE, but home.js's top-level `const { sev, ... }
+// = window.ReportRender` collided with a same-named global here and
+// threw "Identifier 'sev' has already been declared" in production.
+(function () {
+  "use strict";
 
 const SEV = {
   SL1: { color: '#D43A2F', label: 'SL1 · Crítica' },
@@ -204,3 +213,4 @@ window.ReportRender = {
   BRAND_LOGOS_PPTX,
   computeStats, buildPptxDeck,
 };
+})();

@@ -1,3 +1,6 @@
+(function () {
+  "use strict";
+
 // Shared with app.js via report-render.js (loaded before this script).
 const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, buildPptxDeck } = window.ReportRender;
 
@@ -490,3 +493,9 @@ const HomePage = {
 };
 
 document.addEventListener('DOMContentLoaded', () => HomePage.init());
+
+// Expose globally: the report cards' rendered HTML calls HomePage.xxx()
+// from inline onclick/onchange attributes, which resolve against the
+// global scope regardless of this IIFE.
+window.HomePage = HomePage;
+})();
