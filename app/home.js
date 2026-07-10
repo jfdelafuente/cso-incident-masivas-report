@@ -54,6 +54,15 @@ const HomePage = {
     }
   },
 
+  // Same year/week formula used to default the "Nuevo Informe" modal, so
+  // the dashboard's "semana actual" section always matches what a brand
+  // new report would be filed under today.
+  currentYearWeek() {
+    const today = new Date();
+    const week = Math.ceil((today - new Date(today.getFullYear(), 0, 1)) / 86400000 / 7);
+    return { year: today.getFullYear(), week };
+  },
+
   renderReports() {
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
@@ -79,8 +88,82 @@ const HomePage = {
     }
     noResultsEl.style.display = 'none';
 
-    listEl.innerHTML = filtered.map(report => `
-      <div class="report-card">
+    const { year: curYear, week: curWeek } = this.currentYearWeek();
+    const isCurrentWeek = (r) => r.year === curYear && r.week === curWeek;
+    const currentWeekReports = filtered.filter(isCurrentWeek);
+    const otherReports = filtered.filter(r => !isCurrentWeek(r));
+
+    let html = '';
+    if (currentWeekReports.length) {
+      html += '<div class="reports-section-title">Semana actual</div>';
+      html += `<div class="reports-grid">${currentWeekReports.map(r => this.reportCardHtml(r, true)).join('')}</div>`;
+    }
+    if (otherReports.length) {
+      html += currentWeekReports.length ? '<div class="reports-section-title">Otras semanas</div>' : '';
+      html += this.reportsTableHtml(otherReports);
+    }
+    listEl.innerHTML = html;
+  },
+
+  reportsTableHtml(reports) {
+    return `
+      <table class="reports-table">
+        <thead>
+          <tr>
+            <th>Informe</th>
+            <th>Estado</th>
+            <th>Rango</th>
+            <th>Dpto</th>
+            <th>Incidencias</th>
+            <th>Creado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${reports.map(r => this.reportRowHtml(r)).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+
+  reportRowHtml(report) {
+    return `
+      <tr>
+        <td class="report-id">${report.id}</td>
+        <td>
+          <select class="status-badge status-${report.status}" onchange="HomePage.changeStatus('${report.id}', this.value)">
+            <option value="draft" ${report.status === 'draft' ? 'selected' : ''}>Draft</option>
+            <option value="reviewed" ${report.status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+            <option value="published" ${report.status === 'published' ? 'selected' : ''}>Published</option>
+          </select>
+        </td>
+        <td>${report.range}</td>
+        <td>${report.dept}</td>
+        <td>${report.incidents.length}</td>
+        <td>${new Date(report.createdAt).toLocaleDateString('es-ES')}</td>
+        <td>
+          <div class="table-actions">
+            <a href="editor.html?report=${report.id}" class="btn btn-primary btn-small">Editar</a>
+            <a href="preview.html?report=${report.id}" class="btn btn-success btn-small">Ver</a>
+            <select class="action-select" onchange="HomePage.handleExportAction('${report.id}', this.value); this.value='';">
+              <option value="" selected disabled>Exportar</option>
+              <option value="pdf">📄 PDF</option>
+              <option value="pptx">📊 PowerPoint</option>
+              <option value="duplicate">📋 Duplicar</option>
+            </select>
+            <select class="action-select danger" onchange="HomePage.deleteReport('${report.id}'); this.value='';">
+              <option value="" selected disabled>Borrar</option>
+              <option value="delete">🗑 Confirmar</option>
+            </select>
+          </div>
+        </td>
+      </tr>
+    `;
+  },
+
+  reportCardHtml(report, isCurrentWeek) {
+    return `
+      <div class="report-card${isCurrentWeek ? ' current-week' : ''}">
         <div class="report-header">
           <div class="report-id">${report.id}</div>
           <select class="status-badge status-${report.status}" onchange="HomePage.changeStatus('${report.id}', this.value)">
@@ -118,7 +201,7 @@ const HomePage = {
           </select>
         </div>
       </div>
-    `).join('');
+    `;
   },
 
   openNewReportModal() {
@@ -126,9 +209,8 @@ const HomePage = {
     document.getElementById('modalTitle').textContent = 'Nuevo Informe';
     document.getElementById('reportForm').reset();
 
-    const today = new Date();
-    const week = Math.ceil((today - new Date(today.getFullYear(), 0, 1)) / 86400000 / 7);
-    document.getElementById('formYear').value = today.getFullYear();
+    const { year, week } = this.currentYearWeek();
+    document.getElementById('formYear').value = year;
     document.getElementById('formWeek').value = week;
     document.getElementById('formRange').value = '';
     document.getElementById('formDept').value = 'Customer & Service Operations';
