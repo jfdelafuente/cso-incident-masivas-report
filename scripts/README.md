@@ -97,7 +97,7 @@ PPT, no un fallo del script:
 
 - **Placeholders sin rellenar en el PPT original** (`xxxx`, `XXXXX` en duración/solución): el propio reporte manual se entregó incompleto esa semana: no se puede inferir el dato real, hay que rellenarlo a mano en el editor tras importar.
 - **Grupos no reconocidos** (p.ej. `"RED B2B"`): esta app solo distingue IT/RED vía una regexp sobre el nombre del grupo (`areaOf()` en `app/app.js`); un grupo nuevo se guarda literal en el campo `group` pero puede no visualizarse igual que "RED >5.000 clientes"/"Otras RED" hasta que se decida cómo clasificarlo.
-- **Campos que este PPT nunca registró**: `severity` (queda `SL2` por defecto), `brands`, `ministry`/`platform` (quedan `false`), `actionPoints`, `category`/`system` (todo el texto va a `title`). Revísalos incidencia por incidencia antes de dar el informe por bueno.
+- **Campos que este PPT nunca registró**: `severity` (queda `SL2` por defecto), `brands`, `ministry`/`platform`/`externalOrigin` (quedan `false`), `actionPoints`, `category`/`system` (todo el texto va a `title`). Revísalos incidencia por incidencia antes de dar el informe por bueno.
 - **Duraciones multi-día** (p.ej. `"2días 5h 35m"`, `"5d 11h"`): el parser de duración de la app (`parseDurMin()` en `app/app.js`) solo entiende horas/minutos sueltos, no días — es una limitación ya existente de la app, no de este script. Si una incidencia duró varios días, corrige el valor a mano tras importar o el cálculo de duración total del informe saldrá mal.
 
 ### Cómo cargar el JSON resultante en la app

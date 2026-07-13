@@ -3,7 +3,7 @@
 into a JSON payload matching POST /api/reports.
 
 The old deck has no per-incident type information this app tracks
-(severity, brands, ministry/platform flags, action points) -- those are
+(severity, brands, ministry/platform/external-origin flags, action points) -- those are
 always defaulted and MUST be reviewed by hand after import. Everything
 else (title, date, duration, ticket(s), the Impacto/Causa/Solución text,
 and the metrics lines) is reconstructed from each shape's position on the
@@ -192,6 +192,7 @@ def parse_incident_group(group_shape, group_label):
         "brands": "",
         "ministry": False,
         "platform": False,
+        "externalOrigin": False,
         "_flags": flags,
     }
 
@@ -294,7 +295,7 @@ def main():
             print(f"  - {w}")
         print()
     print("Campos que ESTE PPT no registraba y quedan con su valor por defecto en TODAS las incidencias:")
-    print("  - severity (default SL2), brands (vacío), ministry/platform (False), actionPoints (vacío), category/system (vacío, todo va en 'title')")
+    print("  - severity (default SL2), brands (vacío), ministry/platform/externalOrigin (False), actionPoints (vacío), category/system (vacío, todo va en 'title')")
     print()
 
     if args.output:

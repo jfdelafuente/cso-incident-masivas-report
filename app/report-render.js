@@ -35,6 +35,31 @@ function severityOptions(group) {
   return SEVERITY_KEYS_BY_AREA[areaOf(group)].map(k => [k, SEV[k].label]);
 }
 
+const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+// Incident `date` values are "DD/MM/YYYY[ HH:MM]" -- parse just the date
+// part; returns null for anything that doesn't match (empty/placeholder
+// values from a bad import) so the weekday chart quietly excludes them
+// instead of miscounting.
+function parseIncidentDate(s) {
+  const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  const d = new Date(+m[3], +m[2] - 1, +m[1]);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Incident counts by weekday (Lun-Dom), split IT/RED, for the "incidencias
+// por día de la semana" chart shared by the HTML preview, PPTX and PDF.
+function weekdayBreakdown(incidents) {
+  const inc = incidents || [];
+  return WEEKDAY_LABELS.map((label, idx) => {
+    const jsDay = (idx + 1) % 7; // Date#getDay(): 0=Sun..6=Sat, Mon-first here
+    const day = inc.filter(i => { const d = parseIncidentDate(i.date); return d && d.getDay() === jsDay; });
+    const it = day.filter(i => areaOf(i.group) === 'IT').length;
+    return { label, it, red: day.length - it };
+  });
+}
+
 function parseDurMin(s) {
   s = String(s || '');
   const h = (s.match(/(\d+)\s*h/) || [0, 0])[1];
@@ -94,7 +119,8 @@ function computeStats(incidents) {
   const mob = inc.reduce((a, i) => a + num(i.cMobile), 0);
   const ministryCount = inc.filter(i => i.ministry).length;
   const platformCount = inc.filter(i => i.platform).length;
-  return { count, itCount, redCount, emergencia, critica, sl3, ministryCount, platformCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
+  const externalOriginCount = inc.filter(i => i.externalOrigin).length;
+  return { count, itCount, redCount, emergencia, critica, sl3, ministryCount, platformCount, externalOriginCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
 }
 
 // Builds the cover + executive-summary + per-incident slides onto an
@@ -157,12 +183,44 @@ function buildPptxDeck(P, meta, incidents) {
     s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w, h: 0.22, fill: { color: r[2] }, rectRadius: 0.11 });
     s.addText(String(r[1]), { x: 8.0, y, w: 0.55, h: 0.4, align: 'right', color: INK, fontSize: 15, bold: true, fontFace: 'Arial' });
   });
-  s.addShape(P.ShapeType.roundRect, { x: 8.95, y: 4.15, w: 3.88, h: 2.85, fill: { color: BLACK }, rectRadius: 0.1 });
-  s.addText('REPORTADAS AL MINISTERIO', { x: 9.25, y: 4.35, w: 3.3, h: 0.35, align: 'center', color: 'B8B2A9', fontSize: 11, bold: true, charSpacing: 1, fontFace: 'Arial' });
-  s.addText(String(v.ministryCount), { x: 9.25, y: 4.62, w: 3.3, h: 0.75, align: 'center', color: ORANGE, fontSize: 40, bold: true, fontFace: 'Arial' });
-  s.addShape(P.ShapeType.line, { x: 9.25, y: 5.55, w: 3.3, h: 0, line: { color: '2A2823', width: 1 } });
-  s.addText('CON IMPACTO EN PLATAFORMA', { x: 9.25, y: 5.7, w: 3.3, h: 0.35, align: 'center', color: 'B8B2A9', fontSize: 11, bold: true, charSpacing: 1, fontFace: 'Arial' });
-  s.addText(String(v.platformCount), { x: 9.25, y: 5.97, w: 3.3, h: 0.75, align: 'center', color: WHITE, fontSize: 40, bold: true, fontFace: 'Arial' });
+  const mBoxY = 4.15, mBoxH = 2.85, mRowH = mBoxH / 3;
+  s.addShape(P.ShapeType.roundRect, { x: 8.95, y: mBoxY, w: 3.88, h: mBoxH, fill: { color: BLACK }, rectRadius: 0.1 });
+  [['REPORTADAS AL MINISTERIO', v.ministryCount, ORANGE], ['CON IMPACTO EN PLATAFORMA', v.platformCount, WHITE], ['ORIGEN EXTERNO', v.externalOriginCount, WHITE]].forEach((r, i) => {
+    const rowY = mBoxY + i * mRowH;
+    s.addText(r[0], { x: 9.25, y: rowY + 0.18, w: 3.3, h: 0.28, align: 'center', color: 'B8B2A9', fontSize: 10.5, bold: true, charSpacing: 1, fontFace: 'Arial' });
+    s.addText(String(r[1]), { x: 9.25, y: rowY + 0.4, w: 3.3, h: 0.42, align: 'center', color: r[2], fontSize: 30, bold: true, fontFace: 'Arial' });
+    if (i < 2) s.addShape(P.ShapeType.line, { x: 9.25, y: rowY + mRowH, w: 3.3, h: 0, line: { color: '2A2823', width: 1 } });
+  });
+
+  // Complementary slide: incidents by weekday (Lun-Dom), split IT/RED --
+  // helps spot whether outages cluster on specific days (e.g. weekend RED
+  // cuts vs. weekday IT releases).
+  const wk = weekdayBreakdown(inc);
+  s = P.addSlide(); s.background = { color: WHITE };
+  s.addText('RESUMEN EJECUTIVO', { x: 0.55, y: 0.5, w: 8, h: 0.35, color: ORANGE, fontSize: 13, bold: true, charSpacing: 2, fontFace: 'Arial' });
+  s.addText('Incidencias por día de la semana', { x: 0.5, y: 0.82, w: 10, h: 0.7, color: INK, fontSize: 34, bold: true, fontFace: 'Arial' });
+  s.addShape(P.ShapeType.rect, { x: 9.7, y: 0.95, w: 0.22, h: 0.22, fill: { color: INK } });
+  s.addText('IT', { x: 9.98, y: 0.9, w: 0.7, h: 0.32, color: INK, fontSize: 12, bold: true, fontFace: 'Arial' });
+  s.addShape(P.ShapeType.rect, { x: 10.6, y: 0.95, w: 0.22, h: 0.22, fill: { color: ORANGE } });
+  s.addText('RED', { x: 10.88, y: 0.9, w: 0.9, h: 0.32, color: ORANGE, fontSize: 12, bold: true, fontFace: 'Arial' });
+  s.addShape(P.ShapeType.line, { x: 0.5, y: 1.7, w: 12.33, h: 0, line: { color: BLACK, width: 2.5 } });
+
+  const chartX0 = 0.7, chartW = 11.9, baseY = 6.5, topY = 2.2, maxBarH = baseY - topY;
+  const maxCount = Math.max(1, ...wk.flatMap(d => [d.it, d.red]));
+  const groupW = chartW / wk.length;
+  wk.forEach((d, i) => {
+    const gx = chartX0 + i * groupW;
+    const barW = groupW * 0.28, gap = groupW * 0.08;
+    const itH = maxBarH * d.it / maxCount, redH = maxBarH * d.red / maxCount;
+    const itX = gx + groupW / 2 - gap / 2 - barW;
+    const redX = gx + groupW / 2 + gap / 2;
+    if (d.it) s.addShape(P.ShapeType.roundRect, { x: itX, y: baseY - itH, w: barW, h: itH, fill: { color: INK }, rectRadius: 0.04 });
+    if (d.red) s.addShape(P.ShapeType.roundRect, { x: redX, y: baseY - redH, w: barW, h: redH, fill: { color: ORANGE }, rectRadius: 0.04 });
+    if (d.it) s.addText(String(d.it), { x: itX - 0.1, y: baseY - itH - 0.32, w: barW + 0.2, h: 0.28, align: 'center', color: INK, fontSize: 11, bold: true, fontFace: 'Arial' });
+    if (d.red) s.addText(String(d.red), { x: redX - 0.1, y: baseY - redH - 0.32, w: barW + 0.2, h: 0.28, align: 'center', color: ORANGE, fontSize: 11, bold: true, fontFace: 'Arial' });
+    s.addText(d.label, { x: gx, y: baseY + 0.15, w: groupW, h: 0.35, align: 'center', color: MUT, fontSize: 13, bold: true, fontFace: 'Arial' });
+  });
+  s.addShape(P.ShapeType.line, { x: chartX0, y: baseY, w: chartW, h: 0, line: { color: LINE, width: 1.5 } });
 
   inc.forEach((it) => {
     const sv = sev(it.severity);
@@ -216,8 +274,10 @@ function buildPptxDeck(P, meta, incidents) {
     sl.addShape(P.ShapeType.rect, { x: 0, y: 6.95, w: 13.333, h: 0.55, fill: { color: 'F7F6F4' } });
     sl.addText('MARCAS:  ' + (it.brands || '—'), { x: 0.55, y: 6.95, w: 8, h: 0.55, color: '5C5852', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
     const flags = [];
-    if (it.ministry) flags.push({ text: '● Reportada al Ministerio', options: { color: ORANGE, bold: true } });
-    if (it.platform) { if (flags.length) flags.push({ text: '     ', options: {} }); flags.push({ text: '● Impacto en plataforma', options: { color: MUT, bold: true } }); }
+    const pushFlag = (text, color) => { if (flags.length) flags.push({ text: '     ', options: {} }); flags.push({ text, options: { color, bold: true } }); };
+    if (it.ministry) pushFlag('● Reportada al Ministerio', ORANGE);
+    if (it.platform) pushFlag('● Impacto en plataforma', MUT);
+    if (it.externalOrigin) pushFlag('● Origen Externo', INK);
     if (flags.length) sl.addText(flags, { x: 6.5, y: 6.95, w: 6.3, h: 0.55, align: 'right', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
   });
 }
@@ -227,6 +287,6 @@ window.ReportRender = {
   parseDurMin, fmtDur, fmtK, num,
   metricsArr, actionPointsArr,
   BRAND_LOGOS_PPTX,
-  computeStats, buildPptxDeck,
+  computeStats, weekdayBreakdown, buildPptxDeck,
 };
 })();

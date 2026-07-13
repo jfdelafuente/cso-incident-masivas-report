@@ -2,7 +2,7 @@
   "use strict";
 
 // Shared with app.js via report-render.js (loaded before this script).
-const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, buildPptxDeck } = window.ReportRender;
+const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, weekdayBreakdown, buildPptxDeck } = window.ReportRender;
 
 const HomePage = {
   reports: [],
@@ -330,6 +330,8 @@ const HomePage = {
       const report = await ApiClient.getReport(reportId);
       const inc = report.incidents || [];
       const v = computeStats(inc);
+      const wk = weekdayBreakdown(inc);
+      const wkMax = Math.max(1, ...wk.flatMap(d => [d.it, d.red]));
 
       // Create professional HTML content for PDF
       const htmlContent = `
@@ -358,6 +360,16 @@ const HomePage = {
             .severity-item .bar { flex: 1; height: 20px; background: #EFEDE9; border-radius: 4px; margin: 0 10px; position: relative; }
             .severity-item .bar-fill { height: 100%; border-radius: 4px; }
             .severity-item .count { width: 30px; text-align: right; font-weight: bold; }
+            .weekday-chart { margin: 30px 0 15px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; height: 220px; }
+            .weekday-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+            .weekday-bars { display: flex; align-items: flex-end; gap: 6px; height: 180px; }
+            .weekday-bar { width: 26px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+            .weekday-bar .val { font-size: 11px; font-weight: bold; margin-bottom: 3px; }
+            .weekday-bar .fill { width: 100%; border-radius: 3px 3px 0 0; }
+            .weekday-label { margin-top: 10px; font-size: 12px; font-weight: bold; color: #5C5852; }
+            .weekday-legend { display: flex; gap: 20px; justify-content: center; margin-top: 15px; font-size: 12px; font-weight: bold; color: #5C5852; }
+            .weekday-legend span.item { display: inline-flex; align-items: center; gap: 6px; }
+            .weekday-legend .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
             /* Incident slides */
             .incident { page-break-before: always; }
@@ -423,11 +435,35 @@ const HomePage = {
 
             <div style="margin-top: 30px; padding: 15px; background: #000; color: #fff; border-radius: 8px;">
               <div style="text-align: center;">
-                <div style="font-size: 12px; color: #999;">REPORTADAS AL MINISTERIO</div>
-                <div style="font-size: 32px; font-weight: bold; color: #FF7900; margin: 10px 0;">${ministryCount}</div>
-                <div style="font-size: 12px; color: #999;">CON IMPACTO EN PLATAFORMA</div>
-                <div style="font-size: 24px; font-weight: bold; color: #fff;">${platformCount}</div>
+                ${[['REPORTADAS AL MINISTERIO', v.ministryCount, '#FF7900'], ['CON IMPACTO EN PLATAFORMA', v.platformCount, '#fff'], ['ORIGEN EXTERNO', v.externalOriginCount, '#fff']].map(([label, val, color]) => `
+                <div style="font-size: 12px; color: #999;">${label}</div>
+                <div style="font-size: 24px; font-weight: bold; color: ${color}; margin: 10px 0;">${val}</div>`).join('')}
               </div>
+            </div>
+          </div>
+
+          <!-- Incidencias por día de la semana -->
+          <div class="page summary">
+            <h2>Incidencias por día de la semana</h2>
+            <div class="weekday-chart">
+              ${wk.map(d => `
+              <div class="weekday-col">
+                <div class="weekday-bars">
+                  <div class="weekday-bar">
+                    ${d.it ? `<div class="val">${d.it}</div>` : ''}
+                    <div class="fill" style="height: ${Math.round(180 * d.it / wkMax)}px; background: #0C0B09;"></div>
+                  </div>
+                  <div class="weekday-bar">
+                    ${d.red ? `<div class="val" style="color:#FF7900;">${d.red}</div>` : ''}
+                    <div class="fill" style="height: ${Math.round(180 * d.red / wkMax)}px; background: #FF7900;"></div>
+                  </div>
+                </div>
+                <div class="weekday-label">${d.label}</div>
+              </div>`).join('')}
+            </div>
+            <div class="weekday-legend">
+              <span class="item"><span class="dot" style="background:#0C0B09;"></span>IT</span>
+              <span class="item"><span class="dot" style="background:#FF7900;"></span>RED</span>
             </div>
           </div>
 
@@ -490,6 +526,7 @@ const HomePage = {
                   <div class="flags">
                     ${it.ministry ? '<div class="flag">● Reportada al Ministerio</div>' : ''}
                     ${it.platform ? '<div class="flag">● Impacto en plataforma</div>' : ''}
+                    ${it.externalOrigin ? '<div class="flag">● Origen Externo</div>' : ''}
                   </div>
                 </div>
               </div>
