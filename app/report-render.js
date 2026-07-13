@@ -19,10 +19,21 @@ const SEV = {
   SL1: { color: '#D43A2F', label: 'SL1 · Crítica' },
   SL2: { color: '#FF7900', label: 'SL2 · Alta' },
   SL3: { color: '#E6A100', label: 'SL3 · Media' },
+  EMERGENCIA: { color: '#D43A2F', label: 'Emergencia' },
+  CRITICA: { color: '#FF7900', label: 'Crítica' },
 };
 function sev(k) { return SEV[k] || SEV.SL2; }
 
 function areaOf(group) { return /^(RED|Otras)/.test(group || '') ? 'RED' : 'IT'; }
+
+// Which severity values are selectable depends on the incident's group: IT
+// keeps the existing SL1/SL2/SL3 scale, RED groups only allow "Emergencia"/
+// "Crítica" -- a single source of truth for the group->severity form dropdown
+// in app.js and for any code that needs to pick a default/valid severity.
+const SEVERITY_KEYS_BY_AREA = { IT: ['SL1', 'SL2', 'SL3'], RED: ['EMERGENCIA', 'CRITICA'] };
+function severityOptions(group) {
+  return SEVERITY_KEYS_BY_AREA[areaOf(group)].map(k => [k, SEV[k].label]);
+}
 
 function parseDurMin(s) {
   s = String(s || '');
@@ -71,15 +82,19 @@ function computeStats(incidents) {
   const count = inc.length;
   const itCount = inc.filter(i => areaOf(i.group) === 'IT').length;
   const redCount = count - itCount;
-  const sl1 = inc.filter(i => i.severity === 'SL1').length;
-  const sl2 = inc.filter(i => i.severity === 'SL2').length;
+  // SL1/Emergencia and SL2/Crítica are the same severity tier under IT's
+  // and RED's respective scales (see SEVERITY_KEYS_BY_AREA) -- the
+  // executive summary reports each pair as a single combined row rather
+  // than splitting by scale. SL3 has no RED equivalent, so it stays alone.
+  const emergencia = inc.filter(i => i.severity === 'SL1' || i.severity === 'EMERGENCIA').length;
+  const critica = inc.filter(i => i.severity === 'SL2' || i.severity === 'CRITICA').length;
   const sl3 = inc.filter(i => i.severity === 'SL3').length;
   const totalMin = inc.reduce((a, i) => a + parseDurMin(i.duration), 0);
   const ftth = inc.reduce((a, i) => a + num(i.cFTTH), 0);
   const mob = inc.reduce((a, i) => a + num(i.cMobile), 0);
   const ministryCount = inc.filter(i => i.ministry).length;
   const platformCount = inc.filter(i => i.platform).length;
-  return { count, itCount, redCount, sl1, sl2, sl3, ministryCount, platformCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
+  return { count, itCount, redCount, emergencia, critica, sl3, ministryCount, platformCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
 }
 
 // Builds the cover + executive-summary + per-incident slides onto an
@@ -133,7 +148,8 @@ function buildPptxDeck(P, meta, incidents) {
   });
   s.addShape(P.ShapeType.roundRect, { x: 0.5, y: 4.15, w: 8.2, h: 2.85, fill: { color: WHITE }, line: { color: LINE, width: 1 }, rectRadius: 0.1 });
   s.addText('POR SEVERIDAD', { x: 0.8, y: 4.4, w: 6, h: 0.35, color: GREY, fontSize: 12, bold: true, charSpacing: 1, fontFace: 'Arial' });
-  [['SL1 · Crítica', v.sl1, 'D43A2F'], ['SL2 · Alta', v.sl2, ORANGE], ['SL3 · Media', v.sl3, 'E6A100']].forEach((r, i) => {
+  const sevRows = [['SL1-Emergencia', v.emergencia, 'D43A2F'], ['SL2-Crítica', v.critica, ORANGE], ['SL3 · Media', v.sl3, 'E6A100']];
+  sevRows.forEach((r, i) => {
     const y = 4.95 + i * 0.62;
     s.addText(r[0], { x: 0.8, y, w: 2, h: 0.4, color: r[2], fontSize: 13, bold: true, fontFace: 'Arial' });
     s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w: 5, h: 0.22, fill: { color: 'EFEDE9' }, rectRadius: 0.11 });
@@ -207,7 +223,7 @@ function buildPptxDeck(P, meta, incidents) {
 }
 
 window.ReportRender = {
-  SEV, sev, areaOf,
+  SEV, sev, areaOf, severityOptions,
   parseDurMin, fmtDur, fmtK, num,
   metricsArr, actionPointsArr,
   BRAND_LOGOS_PPTX,

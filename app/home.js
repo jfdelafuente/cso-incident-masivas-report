@@ -413,21 +413,12 @@ const HomePage = {
 
             <div class="severity-chart">
               <h3 style="margin-bottom: 15px;">Por Severidad</h3>
+              ${[['SL1-Emergencia', v.emergencia, '#D43A2F'], ['SL2-Crítica', v.critica, '#FF7900'], ['SL3 · Media', v.sl3, '#E6A100']].map(([label, val, color]) => `
               <div class="severity-item">
-                <div class="label">SL1 · Crítica</div>
-                <div class="bar"><div class="bar-fill" style="width: ${v.count ? (100 * v.sl1 / v.count) : 0}%; background: #D43A2F;"></div></div>
-                <div class="count">${v.sl1}</div>
-              </div>
-              <div class="severity-item">
-                <div class="label">SL2 · Alta</div>
-                <div class="bar"><div class="bar-fill" style="width: ${v.count ? (100 * v.sl2 / v.count) : 0}%; background: #FF7900;"></div></div>
-                <div class="count">${v.sl2}</div>
-              </div>
-              <div class="severity-item">
-                <div class="label">SL3 · Media</div>
-                <div class="bar"><div class="bar-fill" style="width: ${v.count ? (100 * v.sl3 / v.count) : 0}%; background: #E6A100;"></div></div>
-                <div class="count">${v.sl3}</div>
-              </div>
+                <div class="label">${label}</div>
+                <div class="bar"><div class="bar-fill" style="width: ${v.count ? (100 * val / v.count) : 0}%; background: ${color};"></div></div>
+                <div class="count">${val}</div>
+              </div>`).join('')}
             </div>
 
             <div style="margin-top: 30px; padding: 15px; background: #000; color: #fff; border-radius: 8px;">
@@ -447,7 +438,7 @@ const HomePage = {
             return `
               <div class="page incident">
                 <div class="incident-header">
-                  <div class="severity-badge" style="background: ${sv.color};">${it.severity}</div>
+                  <div class="severity-badge" style="background: ${sv.color};">${sv.label}</div>
                   <h3>${it.title || it.category}</h3>
                   <div class="meta">${it.group} · ${it.system || '—'}</div>
                 </div>

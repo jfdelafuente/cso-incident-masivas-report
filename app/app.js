@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'mo_inc_report_v1';
 
   // Shared with home.js via report-render.js (loaded before this script).
-  const { sev, areaOf, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, buildPptxDeck } = window.ReportRender;
+  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, buildPptxDeck } = window.ReportRender;
 
   function defaultMeta() {
     return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
@@ -14,12 +14,12 @@
     return [
       { group:'IT OSP/JZZ', severity:'SL2', category:'Degradación', system:'TEIDE', title:'Dificultad en la suplantación de SFID en tienda', ticket:'INC000004059314', date:'25/06/2026 9:31', duration:'12h 29min', impact:'Afectación generalizada a tiendas Orange y BackOffice, con especial impacto en ATAC Guadalajara, Salamanca y Jerez.', metrics:'', cause:'Desalineación entre sistemas GDU y Teide en la gestión de usuarios. Una modificación en GDU lanzó una sincronización, eliminando el SFID en Teide para un conjunto de usuarios.', solution:'Reasignación de los SFID a los usuarios afectados para restablecer el servicio. Apertura de análisis técnico para revisar el flujo de sincronización y control de cambios en GDU.', actionPoints:'', cFTTH:'', cMobile:'', brands:'Orange, Jazztel', ministry:false, platform:false },
       { group:'IT MM', severity:'SL1', category:'Indisponibilidad', system:'Prepago Qvantel', title:'Indisponibilidad de prepago Lebara y Llamaya', ticket:'OPIT-917709', date:'26/06/2026 17:53', duration:'3h 15min', impact:'Indisponibilidad de activaciones, recargas y bonos para las marcas de prepago de Lebara y Llamaya.', metrics:'', cause:'Lanzamiento masivo de bonos a Venezuela, de forma simultánea desde un gestor de campañas desconocido, que saturaron el sistema.', solution:'Se detuvo la ejecución masiva de bonos para Venezuela, recuperando el rendimiento habitual del aplicativo y mitigando el impacto.', actionPoints:'', cFTTH:'', cMobile:'', brands:'Lebara, Llamaya', ministry:false, platform:false },
-      { group:'RED >5.000 clientes', severity:'SL2', category:'Pérdida de servicio FTTH y móvil', system:'Corte de fibra · Telefónica', title:'Pérdida de servicio FTTH y móvil en la provincia de Málaga', ticket:'2606X52817 / 2606X52728', date:'22/06/2026 13:05', duration:'0h 31min', impact:'', metrics:'FTTH | 10,6K\nMóvil | 7,3K (32 nodos)\nTTs MM/KRT | 33\nTTs OSP/JZZ | 84\nLlamadas Brújula | 11', cause:'Corte de fibra en red de Telefónica.', solution:'Recuperado tras intervención de TESA.', actionPoints:'', cFTTH:'10.6', cMobile:'7.3', brands:'MásMóvil, Orange, Jazztel', ministry:false, platform:false },
-      { group:'RED >5.000 clientes', severity:'SL1', category:'Pérdida de servicio móvil', system:'TP + corte TX', title:'Pérdida de servicio móvil en la provincia de Badajoz', ticket:'2606Y32050', date:'24/06/2026 2:03', duration:'0h 17min', impact:'', metrics:'Móvil | 34,6K (170 nodos)\nLlamadas Brújula | 3', cause:'Ejecución del TPZ2026060297749 (migración de software a la versión 24.10.R7 de agregadores Nokia) coincidiendo con corte de TX de TFCA.', solution:'Recuperado tras finalización del impacto del TP.', actionPoints:'', cFTTH:'', cMobile:'34.6', brands:'MásMóvil', ministry:false, platform:false },
-      { group:'RED >5.000 clientes', severity:'SL3', category:'Pérdida de servicio móvil', system:'Corte de fibra · RS VDF', title:'Pérdida de servicio móvil en Guadalajara, Ciudad Real y Toledo', ticket:'2606Y84202', date:'25/06/2026 9:20', duration:'1h 30min', impact:'', metrics:'Móvil | 3,4K (45 nodos)\nLlamadas Brújula | 9', cause:'Caída de 45 nodos RS VDF por un corte de fibra.', solution:'Recuperado tras re-enrutar el servicio.', actionPoints:'', cFTTH:'', cMobile:'3.4', brands:'MásMóvil', ministry:false, platform:false },
-      { group:'RED >5.000 clientes', severity:'SL1', category:'Pérdida de servicio móvil', system:'Doble corte TX · Telefónica', title:'Pérdida de servicio móvil en la isla de La Palma (Tenerife)', ticket:'2606Y92535', date:'25/06/2026 12:15', duration:'12h 25min', impact:'Reportada al Ministerio al cumplirse los criterios definidos en cuanto a impacto y duración.', metrics:'Móvil | 6,5K (22 nodos)\nLlamadas Brújula | 443', cause:'Caída de 22 nodos RS VDF por un doble corte de transmisión en red de Telefónica.', solution:'Recuperado tras recuperar TESA uno de los cortes.', actionPoints:'', cFTTH:'', cMobile:'6.5', brands:'MásMóvil', ministry:true, platform:false },
-      { group:'RED >5.000 clientes', severity:'SL1', category:'Pérdida de servicio FTTH y móvil', system:'Doble corte TX · Telefónica', title:'Pérdida de servicio FTTH y móvil en la provincia de Valencia', ticket:'2606Z04580', date:'25/06/2026 16:55', duration:'2h 4min', impact:'', metrics:'FTTH | 58,6K\nMóvil | 2,5K (12 nodos)\nTTs MM/KRT | 3.352\nTTs OSP/JZZ | 4.410\nLlamadas Brújula | 80', cause:'Doble corte de transmisión en red de Telefónica.', solution:'Recuperado tras reparar ambos cortes por parte de Telefónica.', actionPoints:'', cFTTH:'58.6', cMobile:'2.5', brands:'MásMóvil, Orange, Jazztel', ministry:false, platform:false },
-      { group:'Otras RED', severity:'SL3', category:'Saturación en enlaces IP', system:'Enlace Lyntia Madrid–Sevilla', title:'Saturación IP Madrid–Sevilla en marcas exMM (Andalucía y Canarias)', ticket:'2606X47269', date:'22/06/2026 11:30', duration:'1h 50min', impact:'', metrics:'Capacidad | 800GB → 200GB\nTTs MM/KRT | 60 (Fibra) + 290 (TV)\nTTs OSP/JZZ | 0', cause:'Corte de enlace de Lyntia entre Madrid y Sevilla debido a un corte eléctrico.', solution:'Servicio recuperado tras instalar grupo electrógeno por parte de Lyntia.', actionPoints:'', cFTTH:'', cMobile:'', brands:'MásMóvil, Yoigo', ministry:false, platform:false },
+      { group:'RED >5.000 clientes', severity:'CRITICA', category:'Pérdida de servicio FTTH y móvil', system:'Corte de fibra · Telefónica', title:'Pérdida de servicio FTTH y móvil en la provincia de Málaga', ticket:'2606X52817 / 2606X52728', date:'22/06/2026 13:05', duration:'0h 31min', impact:'', metrics:'FTTH | 10,6K\nMóvil | 7,3K (32 nodos)\nTTs MM/KRT | 33\nTTs OSP/JZZ | 84\nLlamadas Brújula | 11', cause:'Corte de fibra en red de Telefónica.', solution:'Recuperado tras intervención de TESA.', actionPoints:'', cFTTH:'10.6', cMobile:'7.3', brands:'MásMóvil, Orange, Jazztel', ministry:false, platform:false },
+      { group:'RED >5.000 clientes', severity:'EMERGENCIA', category:'Pérdida de servicio móvil', system:'TP + corte TX', title:'Pérdida de servicio móvil en la provincia de Badajoz', ticket:'2606Y32050', date:'24/06/2026 2:03', duration:'0h 17min', impact:'', metrics:'Móvil | 34,6K (170 nodos)\nLlamadas Brújula | 3', cause:'Ejecución del TPZ2026060297749 (migración de software a la versión 24.10.R7 de agregadores Nokia) coincidiendo con corte de TX de TFCA.', solution:'Recuperado tras finalización del impacto del TP.', actionPoints:'', cFTTH:'', cMobile:'34.6', brands:'MásMóvil', ministry:false, platform:false },
+      { group:'RED >5.000 clientes', severity:'CRITICA', category:'Pérdida de servicio móvil', system:'Corte de fibra · RS VDF', title:'Pérdida de servicio móvil en Guadalajara, Ciudad Real y Toledo', ticket:'2606Y84202', date:'25/06/2026 9:20', duration:'1h 30min', impact:'', metrics:'Móvil | 3,4K (45 nodos)\nLlamadas Brújula | 9', cause:'Caída de 45 nodos RS VDF por un corte de fibra.', solution:'Recuperado tras re-enrutar el servicio.', actionPoints:'', cFTTH:'', cMobile:'3.4', brands:'MásMóvil', ministry:false, platform:false },
+      { group:'RED >5.000 clientes', severity:'EMERGENCIA', category:'Pérdida de servicio móvil', system:'Doble corte TX · Telefónica', title:'Pérdida de servicio móvil en la isla de La Palma (Tenerife)', ticket:'2606Y92535', date:'25/06/2026 12:15', duration:'12h 25min', impact:'Reportada al Ministerio al cumplirse los criterios definidos en cuanto a impacto y duración.', metrics:'Móvil | 6,5K (22 nodos)\nLlamadas Brújula | 443', cause:'Caída de 22 nodos RS VDF por un doble corte de transmisión en red de Telefónica.', solution:'Recuperado tras recuperar TESA uno de los cortes.', actionPoints:'', cFTTH:'', cMobile:'6.5', brands:'MásMóvil', ministry:true, platform:false },
+      { group:'RED >5.000 clientes', severity:'EMERGENCIA', category:'Pérdida de servicio FTTH y móvil', system:'Doble corte TX · Telefónica', title:'Pérdida de servicio FTTH y móvil en la provincia de Valencia', ticket:'2606Z04580', date:'25/06/2026 16:55', duration:'2h 4min', impact:'', metrics:'FTTH | 58,6K\nMóvil | 2,5K (12 nodos)\nTTs MM/KRT | 3.352\nTTs OSP/JZZ | 4.410\nLlamadas Brújula | 80', cause:'Doble corte de transmisión en red de Telefónica.', solution:'Recuperado tras reparar ambos cortes por parte de Telefónica.', actionPoints:'', cFTTH:'58.6', cMobile:'2.5', brands:'MásMóvil, Orange, Jazztel', ministry:false, platform:false },
+      { group:'Otras RED', severity:'CRITICA', category:'Saturación en enlaces IP', system:'Enlace Lyntia Madrid–Sevilla', title:'Saturación IP Madrid–Sevilla en marcas exMM (Andalucía y Canarias)', ticket:'2606X47269', date:'22/06/2026 11:30', duration:'1h 50min', impact:'', metrics:'Capacidad | 800GB → 200GB\nTTs MM/KRT | 60 (Fibra) + 290 (TV)\nTTs OSP/JZZ | 0', cause:'Corte de enlace de Lyntia entre Madrid y Sevilla debido a un corte eléctrico.', solution:'Servicio recuperado tras instalar grupo electrógeno por parte de Lyntia.', actionPoints:'', cFTTH:'', cMobile:'', brands:'MásMóvil, Yoigo', ministry:false, platform:false },
     ];
   }
 
@@ -202,7 +202,7 @@
 
     // ---- incident CRUD ----
     addIncident() {
-      this.state.incidents.push({ group: 'RED >5.000 clientes', severity: 'SL2', category: '', system: '', title: 'Nueva incidencia', ticket: '', date: '', duration: '0h 0min', impact: '', metrics: '', cause: '', solution: '', actionPoints: '', cFTTH: '', cMobile: '', brands: '', ministry: false, platform: false });
+      this.state.incidents.push({ group: 'RED >5.000 clientes', severity: 'CRITICA', category: '', system: '', title: 'Nueva incidencia', ticket: '', date: '', duration: '0h 0min', impact: '', metrics: '', cause: '', solution: '', actionPoints: '', cFTTH: '', cMobile: '', brands: '', ministry: false, platform: false });
       this.state.openIdx = this.state.incidents.length - 1;
       this.renderSidebarList();
       this.renderDeck();
@@ -245,7 +245,17 @@
       if (!f) return;
       if (t.tagName !== 'SELECT' && t.type !== 'checkbox') return;
       const i = +t.dataset.i;
-      this.state.incidents[i][f] = t.type === 'checkbox' ? t.checked : t.value;
+      const inc = this.state.incidents[i];
+      inc[f] = t.type === 'checkbox' ? t.checked : t.value;
+      if (f === 'group') {
+        // Severity options depend on the group's area (IT: SL1-3, RED:
+        // Emergencia/Crítica) -- if the incident's current severity isn't
+        // valid for the new group, reset it and re-render the row so its
+        // Severidad <select> shows the right option list.
+        const valid = severityOptions(inc.group);
+        if (!valid.some(([k]) => k === inc.severity)) inc.severity = valid[0][0];
+        this.renderSidebarList();
+      }
       this.afterFieldChange(i);
     },
     afterFieldChange(i) {
@@ -311,9 +321,7 @@
             '</label>' +
             '<label><span style="' + lbl + '">Severidad</span>' +
               '<select data-i="' + idx + '" data-f="severity" style="' + inp + ' background:#fff;">' +
-                '<option value="SL1"' + sel(inc.severity, 'SL1') + '>SL1 · Crítica</option>' +
-                '<option value="SL2"' + sel(inc.severity, 'SL2') + '>SL2 · Alta</option>' +
-                '<option value="SL3"' + sel(inc.severity, 'SL3') + '>SL3 · Media</option>' +
+                severityOptions(inc.group).map(([k, label]) => '<option value="' + k + '"' + sel(inc.severity, k) + '>' + esc(label) + '</option>').join('') +
               '</select>' +
             '</label>' +
           '</div>' +
@@ -415,21 +423,13 @@
             '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
               '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C; margin-bottom:18px;">Por severidad</div>' +
               '<div style="display:flex; flex-direction:column; gap:14px;">' +
-                '<div style="display:flex; align-items:center; gap:14px;">' +
-                  '<span style="width:90px; font-size:13px; font-weight:700; color:#D43A2F;">SL1 · Crítica</span>' +
-                  '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(c.sl1) + '; background:#D43A2F; border-radius:7px;"></div></div>' +
-                  '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + c.sl1 + '</span>' +
-                '</div>' +
-                '<div style="display:flex; align-items:center; gap:14px;">' +
-                  '<span style="width:90px; font-size:13px; font-weight:700; color:#FF7900;">SL2 · Alta</span>' +
-                  '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(c.sl2) + '; background:#FF7900; border-radius:7px;"></div></div>' +
-                  '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + c.sl2 + '</span>' +
-                '</div>' +
-                '<div style="display:flex; align-items:center; gap:14px;">' +
-                  '<span style="width:90px; font-size:13px; font-weight:700; color:#E6A100;">SL3 · Media</span>' +
-                  '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(c.sl3) + '; background:#E6A100; border-radius:7px;"></div></div>' +
-                  '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + c.sl3 + '</span>' +
-                '</div>' +
+                [['SL1-Emergencia', c.emergencia, '#D43A2F'], ['SL2-Crítica', c.critica, '#FF7900'], ['SL3 · Media', c.sl3, '#E6A100']].map(([label, val, color]) =>
+                  '<div style="display:flex; align-items:center; gap:14px;">' +
+                    '<span style="width:90px; font-size:13px; font-weight:700; color:' + color + ';">' + label + '</span>' +
+                    '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(val) + '; background:' + color + '; border-radius:7px;"></div></div>' +
+                    '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + val + '</span>' +
+                  '</div>'
+                ).join('') +
               '</div>' +
             '</div>' +
             '<div style="background: #000; color: #fff; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; justify-content: center; gap: 20px; text-align: center">' +
@@ -579,8 +579,9 @@
         const cells = split(l);
         const o = {};
         head.forEach((h, i) => o[h] = (cells[i] || '').trim());
+        const group = o.group || 'Otras RED';
         return {
-          group: o.group || 'Otras RED', severity: o.severity || 'SL2', category: o.category || '', system: o.system || '',
+          group, severity: o.severity || severityOptions(group)[0][0], category: o.category || '', system: o.system || '',
           title: o.title || '', ticket: o.ticket || o.id || '', date: o.date || '', duration: o.duration || '',
           impact: o.impact || '', metrics: (o.metrics || '').replace(/\\n/g, '\n'), cause: o.cause || '', solution: o.solution || '',
           actionPoints: (o.actionPoints || '').replace(/\\n/g, '\n'),
@@ -598,9 +599,9 @@
       const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
       const cols = ['group', 'severity', 'category', 'system', 'title', 'ticket', 'date', 'duration', 'impact', 'metrics', 'cause', 'solution', 'actionPoints', 'cFTTH', 'cMobile', 'brands', 'ministry', 'platform'];
       const ex = [
-        ['RED >5.000 clientes', 'SL2', 'Pérdida de servicio FTTH y móvil', 'Corte de fibra · Telefónica', 'Pérdida de servicio en la provincia de Málaga', '2606X52817', '22/06/2026 13:05', '0h 31min', '', 'FTTH | 10,6K\\nMóvil | 7,3K (32 nodos)\\nLlamadas Brújula | 11', 'Corte de fibra en red de Telefónica.', 'Recuperado tras intervención de TESA.', 'AP1 | Seguimiento | Revisar el procedimiento de intervención de TESA para reducir el tiempo de respuesta', '10.6', '7.3', 'MásMóvil, Orange, Jazztel', '', ''],
+        ['RED >5.000 clientes', 'CRITICA', 'Pérdida de servicio FTTH y móvil', 'Corte de fibra · Telefónica', 'Pérdida de servicio en la provincia de Málaga', '2606X52817', '22/06/2026 13:05', '0h 31min', '', 'FTTH | 10,6K\\nMóvil | 7,3K (32 nodos)\\nLlamadas Brújula | 11', 'Corte de fibra en red de Telefónica.', 'Recuperado tras intervención de TESA.', 'AP1 | Seguimiento | Revisar el procedimiento de intervención de TESA para reducir el tiempo de respuesta', '10.6', '7.3', 'MásMóvil, Orange, Jazztel', '', ''],
         ['IT MM', 'SL1', 'Indisponibilidad', 'Prepago Qvantel', 'Indisponibilidad de prepago Lebara y Llamaya', 'OPIT-917709', '26/06/2026 17:53', '3h 15min', 'Indisponibilidad de activaciones, recargas y bonos.', '', 'Saturación del sistema por lanzamiento masivo de bonos.', 'Se detuvo la ejecución masiva, recuperando el rendimiento.', '', '', '', 'Lebara, Llamaya', '', 'si'],
-        ['RED >5.000 clientes', 'SL1', 'Pérdida de servicio móvil', 'Doble corte TX · Telefónica', 'Pérdida de servicio móvil en La Palma', '2606Y92535', '25/06/2026 12:15', '12h 25min', 'Reportada al Ministerio por impacto y duración.', 'Móvil | 6,5K (22 nodos)\\nLlamadas Brújula | 443', 'Caída de 22 nodos por doble corte de TX.', 'Recuperado tras reparar uno de los cortes.', '', '', '6.5', 'MásMóvil', 'si', ''],
+        ['RED >5.000 clientes', 'EMERGENCIA', 'Pérdida de servicio móvil', 'Doble corte TX · Telefónica', 'Pérdida de servicio móvil en La Palma', '2606Y92535', '25/06/2026 12:15', '12h 25min', 'Reportada al Ministerio por impacto y duración.', 'Móvil | 6,5K (22 nodos)\\nLlamadas Brújula | 443', 'Caída de 22 nodos por doble corte de TX.', 'Recuperado tras reparar uno de los cortes.', '', '', '6.5', 'MásMóvil', 'si', ''],
       ];
       const lines = [cols.join(','), ...ex.map(row => row.map(q).join(','))];
       const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
