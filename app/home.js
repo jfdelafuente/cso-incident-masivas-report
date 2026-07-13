@@ -2,7 +2,7 @@
   "use strict";
 
 // Shared with app.js via report-render.js (loaded before this script).
-const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, weekdayBreakdown, buildPptxDeck } = window.ReportRender;
+const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, weekdayBreakdown, sortIncidents, buildPptxDeck } = window.ReportRender;
 
 const HomePage = {
   reports: [],
@@ -328,7 +328,7 @@ const HomePage = {
   async downloadPDF(reportId) {
     try {
       const report = await ApiClient.getReport(reportId);
-      const inc = report.incidents || [];
+      const inc = sortIncidents(report.incidents);
       const v = computeStats(inc);
       const wk = weekdayBreakdown(inc);
       const wkMax = Math.max(1, ...wk.flatMap(d => [d.it, d.red]));

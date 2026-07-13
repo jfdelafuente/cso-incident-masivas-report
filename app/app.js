@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'mo_inc_report_v1';
 
   // Shared with home.js via report-render.js (loaded before this script).
-  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, weekdayBreakdown, buildPptxDeck } = window.ReportRender;
+  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck } = window.ReportRender;
 
   function defaultMeta() {
     return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
@@ -277,11 +277,18 @@
     },
 
     // ---- sidebar rendering ----
+    // Displays incidents sorted (group, then date/time) without reordering
+    // the underlying state.incidents array -- sorts the *indexes* instead,
+    // so each row's data-i/data-row still points at the incident's real
+    // position for editing/removal, and CSV/JSON export keeps insertion order.
+    sortedIncidentIndexes() {
+      return this.state.incidents.map((_, i) => i).sort((a, b) => compareIncidents(this.state.incidents[a], this.state.incidents[b]));
+    },
     renderSidebarList() {
       const c = this.computed();
       // Only render if elements exist (they may not in preview/other pages)
       if (this.els.incCount) this.els.incCount.textContent = c.count;
-      if (this.els.incidentsList) this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) => this.rowTemplate(inc, idx)).join('');
+      if (this.els.incidentsList) this.els.incidentsList.innerHTML = this.sortedIncidentIndexes().map(idx => this.rowTemplate(this.state.incidents[idx], idx)).join('');
     },
     rowTemplate(inc, idx) {
       const isOpen = this.state.openIdx === idx;
@@ -357,7 +364,7 @@
     // ---- deck rendering ----
     renderDeck() {
       if (!this.els.deck) return;
-      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + this.state.incidents.map(inc => this.incidentSlideTemplate(inc)).join('');
+      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + sortIncidents(this.state.incidents).map(inc => this.incidentSlideTemplate(inc)).join('');
       this.els.deck.innerHTML = html;
       this.fit();
     },
@@ -655,7 +662,7 @@
       a.click();
     },
     exportJSON() {
-      const data = { meta: this.state.meta, incidents: this.state.incidents };
+      const data = { meta: this.state.meta, incidents: sortIncidents(this.state.incidents) };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

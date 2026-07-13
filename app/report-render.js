@@ -37,14 +37,16 @@ function severityOptions(group) {
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-// Incident `date` values are "DD/MM/YYYY[ HH:MM]" -- parse just the date
-// part; returns null for anything that doesn't match (empty/placeholder
-// values from a bad import) so the weekday chart quietly excludes them
-// instead of miscounting.
+// Incident `date` values are "DD/MM/YYYY[ H:MM]" -- parses date and (if
+// present) time into one Date, so callers needing only the day (the
+// weekday chart) and callers needing full chronological order (sorting)
+// share one parser. Returns null for anything that doesn't match
+// (empty/placeholder values from a bad import) so those quietly sink to
+// the end / get excluded rather than skewing results.
 function parseIncidentDate(s) {
-  const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
   if (!m) return null;
-  const d = new Date(+m[3], +m[2] - 1, +m[1]);
+  const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -58,6 +60,45 @@ function weekdayBreakdown(incidents) {
     const it = day.filter(i => areaOf(i.group) === 'IT').length;
     return { label, it, red: day.length - it };
   });
+}
+
+// Matches the Grupo <select>'s option order in app.js (IT first, then RED
+// by relevance) -- incidents are displayed/exported in this group order,
+// not alphabetically, since that's the order the app already treats as
+// the logical one everywhere else (dropdown, group() classification).
+const GROUP_ORDER = [
+  'IT OSP/JZZ',
+  'IT MM',
+  'RED >5.000 clientes',
+  'Otras RED',
+  'RED - Relevantes por duración/Climatología/Escalados RRII',
+  'RED - Impacto B2B',
+];
+
+// Sort key: group (per GROUP_ORDER; unrecognized groups sink after known
+// ones, alphabetically among themselves) then date/time ascending
+// (unparsable/empty dates sink to the end within their group). Exposed as
+// a standalone comparator (not just a sort-and-return helper) so the
+// editor's sidebar list can sort *indexes* into state.incidents rather
+// than the array itself -- it needs the original index preserved for
+// data-i/data-row so editing/removing a row still targets the right
+// incident after the display order changes.
+function compareIncidents(a, b) {
+  const rank = (g) => { const i = GROUP_ORDER.indexOf(g); return i === -1 ? GROUP_ORDER.length : i; };
+  const ra = rank(a.group), rb = rank(b.group);
+  if (ra !== rb) return ra - rb;
+  if (a.group !== b.group) return a.group < b.group ? -1 : 1;
+  const da = parseIncidentDate(a.date), db = parseIncidentDate(b.date);
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return da - db;
+}
+
+// Convenience wrapper for callers that just want a sorted copy (exports,
+// the read-only web preview) rather than index tracking.
+function sortIncidents(incidents) {
+  return (incidents || []).slice().sort(compareIncidents);
 }
 
 function parseDurMin(s) {
@@ -130,7 +171,7 @@ function computeStats(incidents) {
 function buildPptxDeck(P, meta, incidents) {
   const ORANGE = 'FF7900', BLACK = '000000', WHITE = 'FFFFFF', GREY = '8A857C', INK = '0C0B09', LINE = 'DEDAD3', MUT = '5C5852';
   const m = meta;
-  const inc = incidents || [];
+  const inc = sortIncidents(incidents);
   const v = computeStats(inc);
 
   let s = P.addSlide(); s.background = { color: BLACK };
@@ -287,6 +328,6 @@ window.ReportRender = {
   parseDurMin, fmtDur, fmtK, num,
   metricsArr, actionPointsArr,
   BRAND_LOGOS_PPTX,
-  computeStats, weekdayBreakdown, buildPptxDeck,
+  computeStats, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck,
 };
 })();
