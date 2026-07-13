@@ -56,11 +56,22 @@ const HomePage = {
 
   // Same year/week formula used to default the "Nuevo Informe" modal, so
   // the dashboard's "semana actual" section always matches what a brand
-  // new report would be filed under today.
+  // new report would be filed under today. Uses real ISO 8601 week
+  // numbering (Monday-first, week 1 = the week containing the year's
+  // first Thursday) -- a naive "day of year / 7" formula drifts off the
+  // ISO week by one for most years (e.g. it under-counted by exactly 1
+  // for 2026, since Jan 1 2026 falls on a Thursday), which showed the
+  // *previous* week's report as "current" instead of this week's.
   currentYearWeek() {
     const today = new Date();
-    const week = Math.ceil((today - new Date(today.getFullYear(), 0, 1)) / 86400000 / 7);
-    return { year: today.getFullYear(), week };
+    const d = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
+    d.setUTCDate(d.getUTCDate() - dayNum + 3); // nearest Thursday this week
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+    const week = 1 + Math.round((d - firstThursday) / (7 * 86400000));
+    return { year: d.getUTCFullYear(), week };
   },
 
   renderReports() {
