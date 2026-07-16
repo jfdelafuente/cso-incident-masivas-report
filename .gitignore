@@ -1,0 +1,9 @@
+# Python bytecode caches (e.g. scripts/, or anywhere outside backend/,
+# which already has its own more complete .gitignore).
+__pycache__/
+*.py[cod]
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
