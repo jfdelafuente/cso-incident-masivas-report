@@ -2,7 +2,7 @@
   "use strict";
 
 // Shared with app.js via report-render.js (loaded before this script).
-const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, weekdayBreakdown, sortIncidents, buildPptxDeck } = window.ReportRender;
+const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, highlightIncident, truncateText, weekdayBreakdown, sortIncidents, buildPptxDeck } = window.ReportRender;
 
 const HomePage = {
   reports: [],
@@ -382,6 +382,21 @@ const HomePage = {
             .weekday-legend span.item { display: inline-flex; align-items: center; gap: 6px; }
             .weekday-legend .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
+            /* Incidencias destacadas */
+            .highlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+            .highlight-area-label { font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+            .highlight-card { border-radius: 8px; background: #F7F6F4; padding: 20px; min-height: 220px; }
+            .highlight-card .badge { display: inline-block; padding: 5px 12px; border-radius: 999px; color: #fff; font-size: 11px; font-weight: bold; }
+            .highlight-card .title { margin-top: 12px; font-size: 16px; font-weight: bold; line-height: 1.3; }
+            .highlight-card .detail { margin-top: 10px; font-size: 12px; color: #5C5852; }
+            .highlight-card .section { margin-top: 12px; }
+            .highlight-card .section-label { display: inline-block; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: 3px; border-bottom: 2px solid; }
+            .highlight-card .section-text { margin-top: 6px; font-size: 12px; color: #26241F; line-height: 1.5; white-space: pre-line; }
+            .highlight-card .metric-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-top: 5px; }
+            .highlight-card .metric-row .m-label { color: #5C5852; }
+            .highlight-card .metric-row .m-value { font-weight: bold; color: #26241F; }
+            .highlight-empty { min-height: 220px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #8A857C; font-style: italic; }
+
             /* Incident slides */
             .incident { page-break-before: always; }
             .incident-header { background: #000; color: #fff; padding: 15px; margin: -20mm -20mm 20px -20mm; }
@@ -416,22 +431,16 @@ const HomePage = {
             <h2>Resumen Ejecutivo</h2>
 
             <div class="stats">
+              ${[
+                [v.count, `Incidencias totales (${v.itCount} IT · ${v.redCount} RED)`, '#0C0B09'],
+                [v.ministryCount, 'Reportadas al Ministerio', '#FF7900'],
+                [v.platformCount, 'Impacto en plataforma', '#0C0B09'],
+                [v.externalOriginCount, 'Origen Externo', '#0C0B09'],
+              ].map(([n, label, color]) => `
               <div class="stat-box">
-                <div class="number">${v.count}</div>
-                <div class="label">Incidencias totales (${v.itCount} IT · ${v.redCount} RED)</div>
-              </div>
-              <div class="stat-box">
-                <div class="number">${v.totalDuration}</div>
-                <div class="label">Tiempo de afectación</div>
-              </div>
-              <div class="stat-box">
-                <div class="number">${v.totalMobile}</div>
-                <div class="label">Clientes móvil</div>
-              </div>
-              <div class="stat-box">
-                <div class="number">${v.totalFTTH}</div>
-                <div class="label">Clientes FTTH</div>
-              </div>
+                <div class="number" style="color: ${color};">${n}</div>
+                <div class="label">${label}</div>
+              </div>`).join('')}
             </div>
 
             <div class="severity-chart">
@@ -442,14 +451,6 @@ const HomePage = {
                 <div class="bar"><div class="bar-fill" style="width: ${v.count ? (100 * val / v.count) : 0}%; background: ${color};"></div></div>
                 <div class="count">${val}</div>
               </div>`).join('')}
-            </div>
-
-            <div style="margin-top: 30px; padding: 15px; background: #000; color: #fff; border-radius: 8px;">
-              <div style="text-align: center;">
-                ${[['REPORTADAS AL MINISTERIO', v.ministryCount, '#FF7900'], ['CON IMPACTO EN PLATAFORMA', v.platformCount, '#fff'], ['ORIGEN EXTERNO', v.externalOriginCount, '#fff']].map(([label, val, color]) => `
-                <div style="font-size: 12px; color: #999;">${label}</div>
-                <div style="font-size: 24px; font-weight: bold; color: ${color}; margin: 10px 0;">${val}</div>`).join('')}
-              </div>
             </div>
           </div>
 
@@ -475,6 +476,42 @@ const HomePage = {
             <div class="weekday-legend">
               <span class="item"><span class="dot" style="background:#0C0B09;"></span>IT</span>
               <span class="item"><span class="dot" style="background:#FF7900;"></span>RED</span>
+            </div>
+          </div>
+
+          <!-- Incidencias destacadas -->
+          <div class="page summary">
+            <h2>Incidencias destacadas</h2>
+            <div class="highlight-grid">
+              ${[['IT', '#0C0B09'], ['RED', '#FF7900']].map(([area, color]) => {
+                const hi = highlightIncident(inc, area);
+                const label = `<div class="highlight-area-label" style="color:${color};">${area}</div>`;
+                if (!hi) return `<div>${label}<div class="highlight-card highlight-empty">Sin incidencias ${area} esta semana</div></div>`;
+                const sv = sev(hi.severity);
+                // Same section accent colors as the per-incident slide
+                // (Causa=ink, Solución=green), plus orange for Métricas to
+                // match the "Impacto" column's accent there.
+                const metricRows = metricsArr(hi.metrics);
+                const blocks = [];
+                if (hi.cause) blocks.push({ label: 'Causa', color: '#0C0B09', kind: 'text', text: hi.cause });
+                if (metricRows.length) blocks.push({ label: 'Métricas', color: '#FF7900', kind: 'metrics', rows: metricRows });
+                if (hi.solution) blocks.push({ label: 'Solución', color: '#1D8754', kind: 'text', text: hi.solution });
+                return `
+                <div>
+                  ${label}
+                  <div class="highlight-card">
+                    <span class="badge" style="background:${sv.color};">${sv.label}</span>
+                    <div class="title">${truncateText(hi.title, 110)}</div>
+                    ${blocks.map(b => `
+                    <div class="section">
+                      <div class="section-label" style="color:${b.color}; border-color:${b.color};">${b.label}</div>
+                      ${b.kind === 'metrics'
+                        ? b.rows.map(m => `<div class="metric-row"><span class="m-label">${m.label}</span><span class="m-value">${m.value}</span></div>`).join('')
+                        : `<div class="section-text">${b.text}</div>`}
+                    </div>`).join('')}
+                  </div>
+                </div>`;
+              }).join('')}
             </div>
           </div>
 

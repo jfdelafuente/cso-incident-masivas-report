@@ -164,6 +164,36 @@ function computeStats(incidents) {
   return { count, itCount, redCount, emergencia, critica, sl3, ministryCount, platformCount, externalOriginCount, totalDuration: fmtDur(totalMin), totalFTTH: fmtK(ftth), totalMobile: fmtK(mob) };
 }
 
+// Shared truncation for the "incidencias destacadas" section: caps text at
+// a fixed length rather than relying on each surface's own overflow/wrap
+// behavior (PptxGenJS auto-wrap, CSS text-overflow, print layout...), so a
+// very long title/cause can never overflow the fixed-size card in any of
+// the three formats, and all three truncate at the exact same point.
+function truncateText(str, n) {
+  const s = String(str || '');
+  return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s;
+}
+
+// Picks the single most notable incident of an area (IT|RED) for the
+// executive summary's "incidencias destacadas" section: highest severity
+// within that area's own scale (index into SEVERITY_KEYS_BY_AREA -- lower
+// index = more severe), tie-broken by longest duration, and finally by
+// order of appearance so the result is 100% deterministic (same input
+// order always yields the same pick, across formats and re-generations).
+// Returns null when the area has no incidents that week.
+function highlightIncident(incidents, area) {
+  const candidates = (incidents || []).filter(i => areaOf(i.group) === area);
+  if (!candidates.length) return null;
+  const rank = (i) => { const r = SEVERITY_KEYS_BY_AREA[area].indexOf(i.severity); return r === -1 ? Infinity : r; };
+  let best = candidates[0];
+  for (let idx = 1; idx < candidates.length; idx++) {
+    const c = candidates[idx];
+    const rc = rank(c), rb = rank(best);
+    if (rc < rb || (rc === rb && parseDurMin(c.duration) > parseDurMin(best.duration))) best = c;
+  }
+  return best;
+}
+
 // Builds the cover + executive-summary + per-incident slides onto an
 // already-created PptxGenJS presentation (layout/writeFile/filename
 // stay with the caller, since those differ between the editor and the
@@ -202,9 +232,9 @@ function buildPptxDeck(P, meta, incidents) {
   s.addShape(P.ShapeType.line, { x: 0.5, y: 1.7, w: 12.33, h: 0, line: { color: BLACK, width: 2.5 } });
   const tiles = [
     { n: String(v.count), l: 'Incidencias totales', s: v.itCount + ' IT · ' + v.redCount + ' RED', c: INK },
-    { n: v.totalDuration, l: 'Tiempo de afectación', s: 'acumulado', c: ORANGE },
-    { n: v.totalMobile, l: 'Clientes móvil', s: 'impacto estimado', c: INK },
-    { n: v.totalFTTH, l: 'Clientes FTTH', s: 'impacto estimado', c: INK },
+    { n: String(v.ministryCount), l: 'Reportadas al Ministerio', s: 'criterios de notificación', c: ORANGE },
+    { n: String(v.platformCount), l: 'Impacto en plataforma', s: 'afectación de plataforma', c: INK },
+    { n: String(v.externalOriginCount), l: 'Origen Externo', s: 'fuera de la operadora', c: INK },
   ];
   tiles.forEach((t, i) => {
     const x = 0.5 + i * 3.13;
@@ -213,24 +243,16 @@ function buildPptxDeck(P, meta, incidents) {
     s.addText(t.l, { x: x + 0.2, y: 3.05, w: 2.6, h: 0.35, color: MUT, fontSize: 13, bold: true, fontFace: 'Arial' });
     s.addText(t.s, { x: x + 0.2, y: 3.38, w: 2.6, h: 0.3, color: GREY, fontSize: 11, fontFace: 'Arial' });
   });
-  s.addShape(P.ShapeType.roundRect, { x: 0.5, y: 4.15, w: 8.2, h: 2.85, fill: { color: WHITE }, line: { color: LINE, width: 1 }, rectRadius: 0.1 });
+  s.addShape(P.ShapeType.roundRect, { x: 0.5, y: 4.15, w: 12.33, h: 2.85, fill: { color: WHITE }, line: { color: LINE, width: 1 }, rectRadius: 0.1 });
   s.addText('POR SEVERIDAD', { x: 0.8, y: 4.4, w: 6, h: 0.35, color: GREY, fontSize: 12, bold: true, charSpacing: 1, fontFace: 'Arial' });
   const sevRows = [['SL1-Emergencia', v.emergencia, 'D43A2F'], ['SL2-Crítica', v.critica, ORANGE], ['SL3 · Media', v.sl3, 'E6A100']];
   sevRows.forEach((r, i) => {
     const y = 4.95 + i * 0.62;
     s.addText(r[0], { x: 0.8, y, w: 2, h: 0.4, color: r[2], fontSize: 13, bold: true, fontFace: 'Arial' });
-    s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w: 5, h: 0.22, fill: { color: 'EFEDE9' }, rectRadius: 0.11 });
-    const w = v.count ? Math.max(0.1, 5 * r[1] / v.count) : 0.1;
+    s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w: 9, h: 0.22, fill: { color: 'EFEDE9' }, rectRadius: 0.11 });
+    const w = v.count ? Math.max(0.1, 9 * r[1] / v.count) : 0.1;
     s.addShape(P.ShapeType.roundRect, { x: 2.9, y: y + 0.08, w, h: 0.22, fill: { color: r[2] }, rectRadius: 0.11 });
-    s.addText(String(r[1]), { x: 8.0, y, w: 0.55, h: 0.4, align: 'right', color: INK, fontSize: 15, bold: true, fontFace: 'Arial' });
-  });
-  const mBoxY = 4.15, mBoxH = 2.85, mRowH = mBoxH / 3;
-  s.addShape(P.ShapeType.roundRect, { x: 8.95, y: mBoxY, w: 3.88, h: mBoxH, fill: { color: BLACK }, rectRadius: 0.1 });
-  [['REPORTADAS AL MINISTERIO', v.ministryCount, ORANGE], ['CON IMPACTO EN PLATAFORMA', v.platformCount, WHITE], ['ORIGEN EXTERNO', v.externalOriginCount, WHITE]].forEach((r, i) => {
-    const rowY = mBoxY + i * mRowH;
-    s.addText(r[0], { x: 9.25, y: rowY + 0.18, w: 3.3, h: 0.28, align: 'center', color: 'B8B2A9', fontSize: 10.5, bold: true, charSpacing: 1, fontFace: 'Arial' });
-    s.addText(String(r[1]), { x: 9.25, y: rowY + 0.4, w: 3.3, h: 0.42, align: 'center', color: r[2], fontSize: 30, bold: true, fontFace: 'Arial' });
-    if (i < 2) s.addShape(P.ShapeType.line, { x: 9.25, y: rowY + mRowH, w: 3.3, h: 0, line: { color: '2A2823', width: 1 } });
+    s.addText(String(r[1]), { x: 12.0, y, w: 0.55, h: 0.4, align: 'right', color: INK, fontSize: 15, bold: true, fontFace: 'Arial' });
   });
 
   // Complementary slide: incidents by weekday (Lun-Dom), split IT/RED --
@@ -262,6 +284,62 @@ function buildPptxDeck(P, meta, incidents) {
     s.addText(d.label, { x: gx, y: baseY + 0.15, w: groupW, h: 0.35, align: 'center', color: MUT, fontSize: 13, bold: true, fontFace: 'Arial' });
   });
   s.addShape(P.ShapeType.line, { x: chartX0, y: baseY, w: chartW, h: 0, line: { color: LINE, width: 1.5 } });
+
+  // Complementary slide: the single most notable incident of each area
+  // (highest severity within its own scale, tie-broken by duration -- see
+  // highlightIncident()), so a reader gets the gist without opening every
+  // per-incident slide. Only the title is truncated (truncateText(), shared
+  // with the other two formats) -- Causa/Métricas/Solución are shown in
+  // full per the app's requirements, so this card uses nearly the whole
+  // slide height to give them room.
+  s = P.addSlide(); s.background = { color: WHITE };
+  s.addText('RESUMEN EJECUTIVO', { x: 0.55, y: 0.5, w: 8, h: 0.35, color: ORANGE, fontSize: 13, bold: true, charSpacing: 2, fontFace: 'Arial' });
+  s.addText('Incidencias destacadas', { x: 0.5, y: 0.82, w: 10, h: 0.7, color: INK, fontSize: 34, bold: true, fontFace: 'Arial' });
+  s.addShape(P.ShapeType.line, { x: 0.5, y: 1.7, w: 12.33, h: 0, line: { color: BLACK, width: 2.5 } });
+
+  const hlY = 2.15, hlBottom = 7.1, colGap = 0.35, colW = (12.33 - colGap) / 2;
+  [['IT', INK], ['RED', ORANGE]].forEach(([area, areaColor], i) => {
+    const cx = 0.5 + i * (colW + colGap);
+    const boxY = hlY + 0.45, boxH = hlBottom - boxY;
+    s.addText(area, { x: cx, y: hlY, w: colW, h: 0.35, color: areaColor, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
+    s.addShape(P.ShapeType.roundRect, { x: cx, y: boxY, w: colW, h: boxH, fill: { color: 'F7F6F4' }, rectRadius: 0.1 });
+    const hi = highlightIncident(inc, area);
+    if (!hi) {
+      s.addText('Sin incidencias ' + area + ' esta semana', { x: cx + 0.3, y: boxY, w: colW - 0.6, h: boxH, align: 'left', valign: 'middle', color: GREY, fontSize: 14, italic: true, fontFace: 'Arial' });
+      return;
+    }
+    const px = cx + 0.3, pw = colW - 0.6;
+    const hsv = sev(hi.severity);
+    s.addShape(P.ShapeType.roundRect, { x: px, y: boxY + 0.25, w: 1.9, h: 0.32, fill: { color: hsv.color.replace('#', '') }, rectRadius: 0.16 });
+    s.addText(hsv.label, { x: px, y: boxY + 0.25, w: 1.9, h: 0.32, align: 'center', color: WHITE, fontSize: 11, bold: true, fontFace: 'Arial' });
+    s.addText(truncateText(hi.title, 80), { x: px, y: boxY + 0.65, w: pw, h: 0.55, color: INK, fontSize: 15, bold: true, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+
+    // Same section accent colors as the per-incident slide (Causa=ink,
+    // Solución=green), plus orange for Métricas to match the "Impacto"
+    // column's accent there -- keeps this card visually consistent with
+    // the rest of the deck instead of inventing a new palette.
+    const metricRows = metricsArr(hi.metrics);
+    const blocks = [];
+    if (hi.cause) blocks.push({ label: 'CAUSA', color: INK, kind: 'text', text: hi.cause });
+    if (metricRows.length) blocks.push({ label: 'MÉTRICAS', color: ORANGE, kind: 'metrics', rows: metricRows });
+    if (hi.solution) blocks.push({ label: 'SOLUCIÓN', color: '1D8754', kind: 'text', text: hi.solution });
+    const blockH = (boxH - 1.3) / Math.max(1, blocks.length);
+    blocks.forEach((b, bi) => {
+      const y = boxY + 1.3 + bi * blockH;
+      s.addText(b.label, { x: px, y, w: pw, h: 0.2, color: b.color, fontSize: 9.5, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      s.addShape(P.ShapeType.line, { x: px, y: y + 0.24, w: 0.55, h: 0, line: { color: b.color, width: 1.75 } });
+      if (b.kind === 'metrics') {
+        const rowH = Math.min(0.28, (blockH - 0.38) / b.rows.length);
+        b.rows.forEach((m, ri) => {
+          const ry = y + 0.34 + ri * rowH;
+          s.addText(m.label || '', { x: px, y: ry, w: pw * 0.62, h: rowH, color: MUT, fontSize: 10, fontFace: 'Arial', valign: 'middle' });
+          s.addText(m.value, { x: px + pw * 0.62, y: ry, w: pw * 0.38, h: rowH, align: 'right', color: INK, fontSize: 10.5, bold: true, fontFace: 'Arial', valign: 'middle' });
+        });
+      } else {
+        s.addText(b.text, { x: px, y: y + 0.34, w: pw, h: blockH - 0.36, color: '26241F', fontSize: 10.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+      }
+    });
+  });
 
   inc.forEach((it) => {
     const sv = sev(it.severity);
@@ -328,6 +406,6 @@ window.ReportRender = {
   parseDurMin, fmtDur, fmtK, num,
   metricsArr, actionPointsArr,
   BRAND_LOGOS_PPTX,
-  computeStats, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck,
+  computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck,
 };
 })();

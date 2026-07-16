@@ -65,4 +65,12 @@ Incident fields (`app/app.js` `seed()` / `backend/schemas.py`) map directly to s
 
 Some incident fields hold delimited multi-line text parsed client-side into structured rows — `metrics` (`"label | value"` per line, parsed by `metricsArr()`) and `actionPoints` (`"AP | Tipo de AP | Descripción"` per line, parsed by `actionPointsArr()`), both rendered as small card lists rather than plain paragraphs. `actionPoints` pairs with `solution` the same way `metrics` pairs with `impact`: one column, structured cards then/or free text stacked together under a single header.
 
+`app/report-render.js` is the single source of truth for anything derived from the incident list (aggregate stats or picks), shared by `app.js`, `home.js` and `buildPptxDeck()` so the editor, the dashboard's exports, and the PPTX never disagree — `computeStats()` (totals/severity/marca counts), `weekdayBreakdown()`, `sortIncidents()`/`compareIncidents()`, and `highlightIncident(incidents, area)` (the executive summary's "incidencia más destacada" per IT/RED: highest severity within that area's own scale, tied-broken by duration, then by order of appearance). Add any new incident-derived aggregate here, not inside `app.js`/`home.js` directly.
+
 **`app/home.js` duplicates significant chunks of `app.js`** rather than importing/sharing them — most notably its own copies of `metricsArr()`/`actionPointsArr()`, and entirely separate PDF (`downloadPDF()`, via `html2pdf()`) and PPTX (`downloadPPTX()`, mirroring `exportPPTX()`'s per-incident-slide loop almost line-for-line) builders, used for the "download without opening the editor" buttons on the dashboard. When you touch an incident field's rendering or export logic in `app.js`, grep `home.js` for the same field name too — it's very easy to update one and silently leave the other stale (as already happened once: `home.js`'s `downloadPDF()` never rendered `metrics` at all, unlike its PPTX builder).
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan:
+`specs/001-executive-summary-dashboard/plan.md`
+<!-- SPECKIT END -->
