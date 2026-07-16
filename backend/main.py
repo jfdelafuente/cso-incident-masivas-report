@@ -51,18 +51,25 @@ sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
 from upload_csv import run_upload  # noqa: E402
 
 @app.post("/api/upload")
-async def upload_dashboard_csv(file: UploadFile = File(...), type: str = Form("massive")):
+async def upload_dashboard_csv(
+    file: UploadFile = File(...),
+    type: str = Form("massive"),
+    release_name: str = Form(None),
+):
     """Guarda un CSV de Release Dashboard en data/input y lo convierte a JSON"""
     filename = Path(file.filename).name
     if not filename.lower().endswith(".csv"):
         return JSONResponse(status_code=400, content={"success": False, "error": "El archivo debe tener extensión .csv"})
+
+    if type == "postmortem" and not release_name:
+        return JSONResponse(status_code=400, content={"success": False, "error": "Falta el nombre de la release (release_name)"})
 
     input_dir = RELEASE_DASHBOARD_ROOT / "data" / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
     csv_path = input_dir / filename
     csv_path.write_bytes(await file.read())
 
-    result = run_upload(csv_path, type, RELEASE_DASHBOARD_ROOT)
+    result = run_upload(csv_path, type, RELEASE_DASHBOARD_ROOT, release_name)
     return JSONResponse(status_code=200 if result["success"] else 500, content=result)
 
 # ============ CRUD Operations ============
