@@ -23,7 +23,7 @@
 **Decisión**:
 
 1. Partir de `sortIncidents(incidents)` (orden Grupo→Fecha ya existente) para no alterar FR-008.
-2. Clave de agrupamiento por incidencia: `group + '|' + severity + '|' + category.trim().toLowerCase()` — pero **solo si `category` no está vacía** tras recortar espacios; si está vacía, la incidencia recibe una clave "no agrupable" única (FR-004: nunca se agrupa, ni con otra de categoría también vacía).
+2. Clave de agrupamiento por incidencia: `group + '|' + severity + '|' + category.trim().toLowerCase()` — pero **solo si `severity` es `SL2` o `CRITICA`** (FR-009: única combinación agrupable, SL2 para IT y Crítica para RED — el resto de severidades, SL1/SL3/Emergencia, siempre reciben una clave "no agrupable" única sin llegar siquiera a mirar la Categoría) **y solo si `category` no está vacía** tras recortar espacios; si cualquiera de las dos condiciones falla, la incidencia recibe una clave "no agrupable" única (FR-004: Categoría vacía nunca se agrupa, ni con otra de categoría también vacía).
 3. Recorrer la lista ya ordenada una vez; para cada incidencia no consumida todavía:
    - Si su clave es "no agrupable", o si ninguna otra incidencia comparte esa clave → grupo de 1 (slide igual que hoy).
    - Si ≥2 incidencias comparten la clave → formar un grupo tomando, en el mismo orden ya establecido, hasta 3 incidencias con esa clave (marcándolas como consumidas). Si sobran más de 3 con la misma clave, las restantes forman el/los siguientes grupo(s) de hasta 3 cuando el recorrido llegue a ellas (siguen sin estar consumidas) — cumple FR-003 sin necesidad de una segunda pasada.
@@ -34,6 +34,7 @@
 **Alternativas consideradas**:
 - Agrupar primero (con un `Map`) y ordenar los grupos después por la fecha mínima de cada uno → funcionalmente equivalente pero más código; se descarta por simplicidad ya que una sola pasada sobre la lista ya ordenada basta.
 - Permitir que Categoría vacía agrupe consigo misma → descartado explícitamente por FR-004 (asunción documentada en la spec: evita juntar incidencias que simplemente no rellenaron el campo).
+- Permitir agrupar cualquier Severidad (no solo SL2/Crítica) → descartado por FR-009: el usuario pidió explícitamente restringir el agrupamiento a la severidad "media" de cada área (SL2 en IT, Crítica en RED) — las severidades más extremas de cada escala (SL1/SL3 en IT, Emergencia en RED) siempre mantienen su propia slide, sin excepción.
 
 ## Decisión 3: Adaptación del layout de slide según el tamaño del grupo
 

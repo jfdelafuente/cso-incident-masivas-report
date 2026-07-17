@@ -23,6 +23,7 @@ Como autor de un informe semanal, quiero que las incidencias que comparten Grupo
 1. **Given** un informe con 2 incidencias que comparten Grupo="IT MM", Severidad="SL2" y Categoría="Caída de red", **When** se genera el informe (vista previa, PDF o PPTX), **Then** ambas incidencias aparecen juntas en una única slide en vez de en dos slides separadas.
 2. **Given** un informe con 4 incidencias que comparten exactamente el mismo Grupo, Severidad y Categoría, **When** se genera el informe, **Then** se reparten en 2 slides (3 y 1) sin perder ninguna incidencia.
 3. **Given** un informe donde ninguna incidencia comparte su combinación de Grupo+Severidad+Categoría con otra, **When** se genera el informe, **Then** cada incidencia sigue apareciendo sola en su propia slide, igual que hoy.
+4. **Given** un informe con 2 incidencias que comparten Grupo="IT MM", Severidad="SL1" (o "SL3") y Categoría idéntica, **When** se genera el informe, **Then** NO se agrupan — cada una aparece en su propia slide, porque SL1/SL3 (IT) y Emergencia (RED) nunca son severidades agrupables (FR-009).
 
 ---
 
@@ -63,12 +64,13 @@ Como autor o lector de un informe, quiero poder identificar sin ambigüedad qué
 - ¿Afecta esto a la slide de "Incidencias destacadas" del resumen ejecutivo? No — esa slide sigue seleccionando una única incidencia por área de forma independiente, sin cambios.
 - ¿Cambia el orden general de las slides en el informe? No — se mantiene el criterio de ordenación actual (Grupo, luego Fecha); una slide agrupada ocupa la posición que le correspondería a su incidencia con la fecha más temprana del grupo.
 - ¿Se muestra el mismo contenido por incidencia en un grupo de 2 que en uno de 3? No — en un grupo de 2 se mantiene el detalle completo de hoy (incluidos los puntos de acción); en un grupo de 3 se omiten los puntos de acción individuales para que quepan las 3, manteniendo Causa y Solución completas.
+- ¿Qué pasa con incidencias de Severidad SL1, SL3 o Emergencia que coinciden en Grupo y Categoría con otras? Nunca se agrupan (FR-009) — mantienen siempre su propia slide individual, sin importar cuántas compartan esa clasificación. Solo SL2 (IT) y Crítica (RED) son severidades agrupables.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE identificar como "coincidentes" (agrupables) las incidencias que comparten exactamente el mismo Grupo, Severidad y Categoría (comparación de texto insensible a mayúsculas/minúsculas para Categoría).
+- **FR-001**: El sistema DEBE identificar como "coincidentes" (agrupables) las incidencias que comparten exactamente el mismo Grupo, Severidad y Categoría (comparación de texto insensible a mayúsculas/minúsculas para Categoría), **y** cuya Severidad sea SL2 (grupos IT) o Crítica (grupos RED) — ver FR-009.
 - **FR-002**: Para cada conjunto de 2 o más incidencias coincidentes, el sistema DEBE mostrarlas juntas en una única slide en vez de en una slide por incidencia.
 - **FR-003**: El sistema NUNCA DEBE colocar más de 3 incidencias en una misma slide; cuando más de 3 incidencias coincidan, DEBE repartirlas en varias slides de hasta 3 cada una, respetando el orden cronológico ya existente para decidir qué incidencias van en cada slide.
 - **FR-004**: Las incidencias con Categoría vacía o sin definir NUNCA DEBEN agruparse con ninguna otra incidencia (incluida otra con Categoría también vacía) — cada una mantiene su propia slide individual.
@@ -79,6 +81,7 @@ Como autor o lector de un informe, quiero poder identificar sin ambigüedad qué
 - **FR-006**: El contenido y la agrupación de las slides DEBE aplicarse de forma idéntica en la vista previa web, el PDF exportado y el PowerPoint exportado — sin divergencias entre los tres formatos.
 - **FR-007**: La slide "Incidencias destacadas" del resumen ejecutivo DEBE permanecer sin cambios por esta funcionalidad (sigue eligiendo una incidencia por área de forma independiente al agrupamiento de las slides de detalle).
 - **FR-008**: El orden general de las slides del informe DEBE mantener el criterio ya existente (Grupo, luego Fecha); una slide agrupada ocupa la posición correspondiente a la fecha más temprana de sus incidencias.
+- **FR-009**: El agrupamiento SOLO DEBE aplicarse a incidencias de Severidad SL2 (en grupos IT) o Crítica (en grupos RED). Las incidencias con cualquier otra Severidad (SL1, SL3 en IT; Emergencia en RED) NUNCA se agrupan, aunque coincidan en Grupo y Categoría con otras — cada una mantiene siempre su propia slide individual.
 
 ### Key Entities
 

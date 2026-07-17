@@ -12,6 +12,7 @@ No hay framework de test automatizado en este repo. Esta es la verificación man
    - **G**: Grupo="IT OSP/JZZ", Severidad="SL1", Categoría="" (vacía).
    - **H**: igual que G (Grupo="IT OSP/JZZ", Severidad="SL1", Categoría="" vacía) — para probar que dos categorías vacías NUNCA se agrupan entre sí.
    - **I**: una incidencia cualquiera sin ninguna coincidencia de clasificación con las demás.
+   - **J, K**: Grupo="IT MM", Severidad="SL1", Categoría="Caída de red" (mismo Grupo+Categoría que A/B, pero con Severidad SL1 en vez de SL2) — para probar que la Severidad no agrupable impide el agrupamiento aunque el resto coincida.
 
 ## Casos a verificar
 
@@ -43,3 +44,7 @@ No hay framework de test automatizado en este repo. Esta es la verificación man
 
 ### 8. Regresión de informes existentes sin coincidencias
 - Abrir un informe ya existente (de antes de esta feature) donde ninguna incidencia comparta clasificación — confirmar que el informe se ve exactamente igual que antes (una slide por incidencia, sin cambios visuales).
+
+### 9. Severidad no agrupable nunca agrupa — FR-009
+- Confirmar que J y K (mismo Grupo+Categoría que A/B, pero Severidad="SL1") **NO** se agrupan entre sí — cada una en su propia slide, pese a compartir Grupo y Categoría.
+- Repetir con una Severidad "Emergencia" en un grupo RED (equivalente a SL1/SL3 en IT) y confirmar el mismo resultado: nunca se agrupa.

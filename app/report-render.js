@@ -116,7 +116,14 @@ function sortIncidents(incidents) {
 // is left over (not yet consumed) starts its own group of up to 3 the next
 // time the loop reaches an unconsumed member with that key -- no second
 // pass or separate re-bucketing step needed.
+// Only SL2 (IT's "Alta" tier) and CRITICA (RED's "Crítica" tier) are
+// groupable severities (FR-009) -- the more extreme severity on each
+// area's scale (SL1/SL3 for IT, EMERGENCIA for RED) always keeps its own
+// slide, even if it would otherwise match another incident's Grupo and
+// Categoría.
+const GROUPABLE_SEVERITIES = { SL2: true, CRITICA: true };
 function groupKey(i) {
+  if (!GROUPABLE_SEVERITIES[i.severity]) return null;
   const cat = String(i.category || '').trim().toLowerCase();
   return cat ? (i.group + '|' + i.severity + '|' + cat) : null;
 }

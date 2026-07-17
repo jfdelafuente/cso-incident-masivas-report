@@ -186,3 +186,11 @@ Con más de una persona disponible:
 - Historia 2 no depende de Historia 1 (ficheros distintos) — pueden desarrollarse en paralelo si hay más de una persona
 - T009/T010/T011 (Historia 3) son la única dependencia cruzada real hacia atrás (cada una depende de la tarea base de su propia superficie en US1/US2) — documentarla así evita que alguien las planifique como completamente independientes por error
 - Evitar: reintroducir la cabecera completa (Grupo+Severidad+Categoría) por incidencia dentro de un panel — es exactamente la redundancia que la Decisión 3 de `research.md` descarta
+
+## Enmienda post-implementación: FR-009 (restricción por Severidad)
+
+Tras completar T001-T016, se añadió **FR-009**: el agrupamiento solo aplica a incidencias de Severidad `SL2` (IT) o `CRITICA` (RED) — el resto de severidades (`SL1`/`SL3` en IT, `EMERGENCIA` en RED) nunca se agrupan, aunque coincidan en Grupo y Categoría. Cambio aplicado directamente sobre el trabajo ya implementado (sin task IDs nuevos):
+- `groupKey()` en `app/report-render.js` ahora comprueba `GROUPABLE_SEVERITIES` (`SL2`/`CRITICA`) antes de mirar la Categoría.
+- `spec.md` (FR-001, FR-009, nuevo edge case, nuevo escenario de aceptación US1), `research.md` (Decisión 2) y `data-model.md` actualizados en consecuencia.
+- `quickstart.md`: nuevo caso 9 (incidencias J/K, mismo Grupo+Categoría que A/B pero Severidad SL1 — no deben agruparse).
+- Reverificado con el mismo script Node de T005, ampliado con J/K — todas las aserciones (incluida la nueva) pasan.

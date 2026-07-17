@@ -30,13 +30,13 @@ Estructura puramente en memoria, recalculada cada vez que se genera el informe (
 GrupoDeSlide = Incidencia[]   // longitud 1, 2 o 3
 ```
 
-- **Longitud 1**: incidencia sin coincidencias de Grupo+Severidad+Categoría con ninguna otra (o con Categoría vacía) — se renderiza exactamente igual que hoy.
-- **Longitud 2 o 3**: incidencias que comparten exactamente Grupo+Severidad+Categoría (comparación de Categoría insensible a mayúsculas/minúsculas y a espacios en los extremos). Nunca supera 3 (FR-003); si hay más de 3 coincidencias, se reparten en varios `GrupoDeSlide` consecutivos.
+- **Longitud 1**: incidencia sin coincidencias de Grupo+Severidad+Categoría con ninguna otra, con Categoría vacía, o con una Severidad no agrupable (SL1/SL3/Emergencia) — se renderiza exactamente igual que hoy.
+- **Longitud 2 o 3**: incidencias que comparten exactamente Grupo+Severidad+Categoría (comparación de Categoría insensible a mayúsculas/minúsculas y a espacios en los extremos), y cuya Severidad es SL2 o Crítica. Nunca supera 3 (FR-003); si hay más de 3 coincidencias, se reparten en varios `GrupoDeSlide` consecutivos.
 
-**Clave de agrupamiento** (derivada, no almacenada): `group + '|' + severity + '|' + category.trim().toLowerCase()`, solo si `category` no está vacía tras recortar espacios. Categoría vacía ⇒ clave única no compartible (FR-004).
+**Clave de agrupamiento** (derivada, no almacenada): `group + '|' + severity + '|' + category.trim().toLowerCase()`, solo si `severity` es `SL2` o `CRITICA` (FR-009) **y** `category` no está vacía tras recortar espacios. Severidad no agrupable o Categoría vacía ⇒ clave única no compartible (FR-004/FR-009).
 
 **Invariantes**:
-- Todas las incidencias de un `GrupoDeSlide` de longitud ≥2 tienen exactamente el mismo `group`, la misma `severity` y la misma `category` (salvo mayúsculas/minúsculas y espacios).
+- Todas las incidencias de un `GrupoDeSlide` de longitud ≥2 tienen exactamente el mismo `group`, la misma `severity` (siempre `SL2` o `CRITICA`, FR-009) y la misma `category` (salvo mayúsculas/minúsculas y espacios).
 - El orden de los `GrupoDeSlide` generados, y el de las incidencias dentro de cada uno, respeta el orden ya existente de `sortIncidents()` (Grupo según `GROUP_ORDER`, luego Fecha ascendente) — FR-008.
 - La unión de todas las incidencias de todos los `GrupoDeSlide` es exactamente el conjunto de incidencias del informe, sin duplicados ni omisiones (SC-002).
 
