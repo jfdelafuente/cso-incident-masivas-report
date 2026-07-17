@@ -418,12 +418,6 @@ const HomePage = {
             <div class="subtitle">${report.year} · SEMANA ${report.week}</div>
             <p style="margin-top: 30px; font-size: 16px;">${report.range}</p>
             <p style="margin-top: 15px; font-size: 14px; color: #8A857C;">${report.dept}</p>
-            <div style="margin-top: 40px; text-align: center;">
-              <div style="font-size: 36px; font-weight: bold;">${v.count}</div>
-              <div style="font-size: 12px; color: #999;">incidencias</div>
-              <div style="font-size: 24px; font-weight: bold; color: #FF7900; margin-top: 10px;">${v.totalDuration}</div>
-              <div style="font-size: 12px; color: #999;">acumulado</div>
-            </div>
           </div>
 
           <!-- Resumen Ejecutivo -->
