@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'mo_inc_report_v1';
 
   // Shared with home.js via report-render.js (loaded before this script).
-  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck } = window.ReportRender;
+  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck } = window.ReportRender;
 
   function defaultMeta() {
     return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
@@ -364,7 +364,7 @@
     // ---- deck rendering ----
     renderDeck() {
       if (!this.els.deck) return;
-      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + sortIncidents(this.state.incidents).map(inc => this.incidentSlideTemplate(inc)).join('');
+      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + this.highlightsTemplate() + sortIncidents(this.state.incidents).map(inc => this.incidentSlideTemplate(inc)).join('');
       this.els.deck.innerHTML = html;
       this.fit();
     },
@@ -406,53 +406,29 @@
             '<div style="text-align:right; font-size:16px; font-weight:600; color:#8A857C;">' + esc(this.coverWeek()) + ' · ' + esc(m.range) + '</div>' +
           '</div>' +
           '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-top:34px;">' +
-            '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
-              '<div style="font-size:56px; font-weight:800; line-height:1; letter-spacing:-0.03em;">' + c.count + '</div>' +
-              '<div style="font-size:14px; color:#5C5852; margin-top:10px; font-weight:600;">Incidencias totales</div>' +
-              '<div style="font-size:12.5px; color:#8A857C; margin-top:4px;">' + c.itCount + ' IT · ' + c.redCount + ' RED</div>' +
-            '</div>' +
-            '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
-              '<div style="font-size:56px; font-weight:800; line-height:1; letter-spacing:-0.03em; color:#FF7900;">' + esc(c.totalDuration) + '</div>' +
-              '<div style="font-size:14px; color:#5C5852; margin-top:10px; font-weight:600;">Tiempo de afectación</div>' +
-              '<div style="font-size:12.5px; color:#8A857C; margin-top:4px;">acumulado en la semana</div>' +
-            '</div>' +
-            '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
-              '<div style="font-size:56px; font-weight:800; line-height:1; letter-spacing:-0.03em;">' + esc(c.totalMobile) + '</div>' +
-              '<div style="font-size:14px; color:#5C5852; margin-top:10px; font-weight:600;">Clientes móvil</div>' +
-              '<div style="font-size:12.5px; color:#8A857C; margin-top:4px;">impacto estimado</div>' +
-            '</div>' +
-            '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
-              '<div style="font-size:56px; font-weight:800; line-height:1; letter-spacing:-0.03em;">' + esc(c.totalFTTH) + '</div>' +
-              '<div style="font-size:14px; color:#5C5852; margin-top:10px; font-weight:600;">Clientes FTTH</div>' +
-              '<div style="font-size:12.5px; color:#8A857C; margin-top:4px;">impacto estimado</div>' +
-            '</div>' +
+            [
+              [c.count, 'Incidencias totales', c.itCount + ' IT · ' + c.redCount + ' RED', '#0C0B09'],
+              [c.ministryCount, 'Reportadas al Ministerio', 'incidencias con criterios de notificación', '#FF7900'],
+              [c.platformCount, 'Impacto en plataforma', 'incidencias con afectación de plataforma', '#0C0B09'],
+              [c.externalOriginCount, 'Origen Externo', 'incidencias con origen fuera de la operadora', '#0C0B09'],
+            ].map(([n, label, sub, color]) =>
+              '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
+                '<div style="font-size:56px; font-weight:800; line-height:1; letter-spacing:-0.03em; color:' + color + ';">' + n + '</div>' +
+                '<div style="font-size:14px; color:#5C5852; margin-top:10px; font-weight:600;">' + label + '</div>' +
+                '<div style="font-size:12.5px; color:#8A857C; margin-top:4px;">' + sub + '</div>' +
+              '</div>'
+            ).join('') +
           '</div>' +
-          '<div style="display:grid; grid-template-columns:2fr 1fr; gap:24px; margin-top:30px;">' +
-            '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px;">' +
-              '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C; margin-bottom:18px;">Por severidad</div>' +
-              '<div style="display:flex; flex-direction:column; gap:14px;">' +
-                [['SL1-Emergencia', c.emergencia, '#D43A2F'], ['SL2-Crítica', c.critica, '#FF7900'], ['SL3 · Media', c.sl3, '#E6A100']].map(([label, val, color]) =>
-                  '<div style="display:flex; align-items:center; gap:14px;">' +
-                    '<span style="width:90px; font-size:13px; font-weight:700; color:' + color + ';">' + label + '</span>' +
-                    '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(val) + '; background:' + color + '; border-radius:7px;"></div></div>' +
-                    '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + val + '</span>' +
-                  '</div>'
-                ).join('') +
-              '</div>' +
-            '</div>' +
-            '<div style="background: #000; color: #fff; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; justify-content: center; gap: 20px; text-align: center">' +
-              [
-                ['Reportadas al Ministerio', c.ministryCount, '#FF7900', 'incidencias con criterios de notificación'],
-                ['Con impacto en plataforma', c.platformCount, '#fff', 'incidencias con afectación de plataforma'],
-                ['Origen Externo', c.externalOriginCount, '#fff', 'incidencias con origen fuera de la operadora'],
-              ].map(([label, val, color, sub], i) => (
-                (i ? '<div style="height:1px; background:#2A2823;"></div>' : '') +
-                '<div>' +
-                  '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#B8B2A9;">' + label + '</div>' +
-                  '<div style="font-size:52px; font-weight:800; line-height:1; margin-top:8px; color:' + color + ';">' + val + '</div>' +
-                  '<div style="font-size:12.5px; color:#8A857C; margin-top:6px;">' + sub + '</div>' +
+          '<div style="border:1px solid #DEDAD3; border-radius:14px; padding:24px; margin-top:30px;">' +
+            '<div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C; margin-bottom:18px;">Por severidad</div>' +
+            '<div style="display:flex; flex-direction:column; gap:14px;">' +
+              [['SL1-Emergencia', c.emergencia, '#D43A2F'], ['SL2-Crítica', c.critica, '#FF7900'], ['SL3 · Media', c.sl3, '#E6A100']].map(([label, val, color]) =>
+                '<div style="display:flex; align-items:center; gap:14px;">' +
+                  '<span style="width:120px; font-size:13px; font-weight:700; color:' + color + ';">' + label + '</span>' +
+                  '<div style="flex:1; height:14px; background:#EFEDE9; border-radius:7px; overflow:hidden;"><div style="height:100%; width:' + pct(val) + '; background:' + color + '; border-radius:7px;"></div></div>' +
+                  '<span style="width:28px; text-align:center; font-size:16px; font-weight:800;">' + val + '</span>' +
                 '</div>'
-              )).join('') +
+              ).join('') +
             '</div>' +
           '</div>' +
         '</section>'
@@ -494,6 +470,69 @@
                 '</div>'
               );
             }).join('') +
+          '</div>' +
+        '</section>'
+      );
+    },
+    highlightsTemplate() {
+      const cardHtml = (area) => {
+        const hi = highlightIncident(this.state.incidents, area);
+        if (!hi) {
+          return (
+            '<div style="border-radius:14px; background:#F7F6F4; padding:24px; flex:1; min-height:0; display:flex; align-items:center; justify-content:center;">' +
+              '<div style="font-size:15px; color:#8A857C; font-style:italic;">Sin incidencias ' + esc(area) + ' esta semana</div>' +
+            '</div>'
+          );
+        }
+        const sv = sev(hi.severity);
+        // Same section accent colors as the per-incident slide (Causa=ink,
+        // Solución=green), plus orange for Métricas to match the
+        // "Impacto" column's accent there.
+        const metricRows = metricsArr(hi.metrics);
+        const blocks = [];
+        if (hi.cause) blocks.push({ label: 'CAUSA', color: '#0C0B09', kind: 'text', text: hi.cause });
+        if (metricRows.length) blocks.push({ label: 'MÉTRICAS', color: '#FF7900', kind: 'metrics', rows: metricRows });
+        if (hi.solution) blocks.push({ label: 'SOLUCIÓN', color: '#1D8754', kind: 'text', text: hi.solution });
+        return (
+          '<div style="border-radius:14px; background:#F7F6F4; padding:20px 24px; flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">' +
+            '<span style="align-self:flex-start; padding:5px 14px; border-radius:999px; background:' + sv.color + '; color:#fff; font-size:11.5px; font-weight:700; letter-spacing:0.02em;">' + esc(sv.label) + '</span>' +
+            '<div style="margin-top:10px; font-size:17px; font-weight:800; line-height:1.25;">' + esc(truncateText(hi.title, 80)) + '</div>' +
+            '<div style="margin-top:8px; flex:1; min-height:0; display:flex; flex-direction:column; gap:10px;">' +
+              blocks.map(b =>
+                '<div style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;">' +
+                  '<div style="display:inline-block; width:fit-content; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:' + b.color + '; padding-bottom:4px; border-bottom:2px solid ' + b.color + ';">' + b.label + '</div>' +
+                  (b.kind === 'metrics'
+                    ? '<div style="margin-top:6px; display:flex; flex-direction:column; gap:4px; overflow:hidden;">' +
+                        b.rows.map(m =>
+                          '<div style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">' +
+                            '<span style="color:#5C5852;">' + esc(m.label) + '</span>' +
+                            '<span style="font-weight:700; color:#26241F;">' + esc(m.value) + '</span>' +
+                          '</div>'
+                        ).join('') +
+                      '</div>'
+                    : '<div style="margin-top:6px; font-size:11.5px; color:#26241F; line-height:1.4; white-space:pre-line; overflow:hidden;">' + esc(b.text) + '</div>'
+                  ) +
+                '</div>'
+              ).join('') +
+            '</div>' +
+          '</div>'
+        );
+      };
+      return (
+        '<section class="mo-slide" style="position:relative; width:1280px; height:720px; flex:none; background:#fff; color:#0C0B09; overflow:hidden; box-shadow:0 18px 50px rgba(0,0,0,.45); padding:56px 64px; display:flex; flex-direction:column;">' +
+          '<div style="border-bottom:3px solid #000; padding-bottom:18px; flex:none;">' +
+            '<div style="font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:#FF7900; margin-bottom:8px;">Resumen ejecutivo</div>' +
+            '<h2 style="margin:0; font-size:46px; font-weight:800; letter-spacing:-0.02em;">Incidencias destacadas</h2>' +
+          '</div>' +
+          '<div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:30px; flex:1; min-height:0;">' +
+            '<div style="display:flex; flex-direction:column; min-height:0;">' +
+              '<div style="font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:#0C0B09; margin-bottom:10px; flex:none;">IT</div>' +
+              cardHtml('IT') +
+            '</div>' +
+            '<div style="display:flex; flex-direction:column; min-height:0;">' +
+              '<div style="font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:#FF7900; margin-bottom:10px; flex:none;">RED</div>' +
+              cardHtml('RED') +
+            '</div>' +
           '</div>' +
         '</section>'
       );

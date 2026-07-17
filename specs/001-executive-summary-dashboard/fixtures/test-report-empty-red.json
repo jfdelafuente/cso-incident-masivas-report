@@ -1,0 +1,30 @@
+{
+  "year": 2026,
+  "week": 32,
+  "range": "27 julio - 2 agosto 2026",
+  "dept": "Customer & Service Operations",
+  "status": "draft",
+  "incidents": [
+    {
+      "group": "IT MM",
+      "severity": "SL1",
+      "category": "Indisponibilidad",
+      "system": "Fixture",
+      "title": "Única incidencia IT de la semana (RED sin incidencias)",
+      "ticket": "IT-101",
+      "date": "27/07/2026 9:00",
+      "duration": "1h 30m",
+      "impact": "",
+      "metrics": "",
+      "cause": "Causa de prueba IT-101",
+      "solution": "Solución de prueba IT-101",
+      "actionPoints": "",
+      "cFTTH": "",
+      "cMobile": "",
+      "brands": "",
+      "ministry": false,
+      "platform": false,
+      "externalOrigin": false
+    }
+  ]
+}
