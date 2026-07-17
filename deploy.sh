@@ -16,6 +16,7 @@ DEPLOY_PATH="/infocodes/project/cso-incident-masivas-report"
 REPO_URL="https://github.com/jfdelafuente/cso-incident-masivas-report.git"
 BACKEND_PORT=8000
 FRONTEND_PATH="$DEPLOY_PATH/app"
+LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
 
 # 1. Clonar o actualizar repositorio
 log_info "Paso 1: Clonar/actualizar repositorio"
@@ -124,7 +125,7 @@ echo "   URL: http://10.132.68.85:8081/reportes-incidencias"
 echo "   API: http://10.132.68.85:8081/api"
 echo ""
 echo "📊 Monitoreo:"
-echo "   Logs backend: tail -f $DEPLOY_PATH/backend/backend.log"
+echo "   Logs backend: tail -f $LOG_DIR/backend.log"
 echo "   Logs nginx: tail -f /infocodes/var/log/nginx/infocodes.access.log"
 echo "   Estado backend: $DEPLOY_PATH/backend/service.sh status"
 echo ""

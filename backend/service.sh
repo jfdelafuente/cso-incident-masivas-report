@@ -18,7 +18,8 @@ source "$SCRIPT_DIR/lib.sh"
 
 PORT="${BACKEND_PORT:-8000}"
 PID_FILE="$SCRIPT_DIR/backend.pid"
-LOG_FILE="$SCRIPT_DIR/backend.log"
+LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+LOG_FILE="$LOG_DIR/backend.log"
 HEALTH_URL="http://localhost:$PORT/api/health"
 PYTHON_BIN="$SCRIPT_DIR/venv/bin/python3"
 HEALTH_RETRIES=15
@@ -80,6 +81,7 @@ start() {
 
     rm -f "$PID_FILE"
     ensure_venv
+    mkdir -p "$LOG_DIR"
 
     log_info "Iniciando backend..."
     nohup "$PYTHON_BIN" main.py >> "$LOG_FILE" 2>&1 &

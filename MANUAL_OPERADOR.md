@@ -20,6 +20,7 @@ Está pensado para un uso **poco frecuente**: prioriza comandos listos para copi
 | Nginx | Instalación propia en `/infocodes/nginx` (binario, config y logs propios, no el paquete del sistema) |
 | URL pública | `http://infocodes.si.orange.es:8081/reportes-incidencias` |
 | Base de datos | SQLite, fichero `backend/reports.db`, tabla `reports` |
+| Logs (backend + mantenimiento) | `/infocodes/logs/cso-incident-masivas-report/` (fuera del árbol del repo) |
 
 ⚠️ **Proxy corporativo**: la shell del servidor tiene `http_proxy`/`https_proxy` activas, y `curl` las respeta incluso para `localhost`, devolviendo `403 Forbidden`. Cualquier `curl` manual contra `localhost`/`127.0.0.1` debe llevar `--noproxy '*'`. Los scripts de este repo (`service.sh`, `maintenance.sh`) ya lo hacen internamente.
 
@@ -36,7 +37,7 @@ Todo con [`backend/service.sh`](backend/service.sh):
 | `./service.sh stop` | Pararlo de forma ordenada (SIGTERM, luego SIGKILL si no responde en 10s) |
 | `./service.sh restart` | Tras un cambio de configuración o código, o si algo va mal |
 
-Logs en `backend/backend.log`, PID en `backend/backend.pid` (ambos fuera de git). Si `start`/`restart` fallan diciendo que el puerto 8000 ya está ocupado por otro proceso, **no lo mates a ciegas** — ver sección 9 ("Proceso huérfano en el puerto 8000").
+Logs en `/infocodes/logs/cso-incident-masivas-report/backend.log`, PID en `backend/backend.pid` (fuera de git). Si `start`/`restart` fallan diciendo que el puerto 8000 ya está ocupado por otro proceso, **no lo mates a ciegas** — ver sección 9 ("Proceso huérfano en el puerto 8000").
 
 ---
 
@@ -103,7 +104,7 @@ cd /infocodes/project/cso-incident-masivas-report/backend
 ```bash
 crontab -l                       # revisa primero qué hay ya, para no perderlo
 crontab -e                       # y añade esta línea:
-15 2 * * * /infocodes/project/cso-incident-masivas-report/backend/maintenance.sh backup >> /infocodes/project/cso-incident-masivas-report/backend/maintenance.log 2>&1
+15 2 * * * /infocodes/project/cso-incident-masivas-report/backend/maintenance.sh backup >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
 ```
 
 **Ver los backups disponibles:**
@@ -136,7 +137,7 @@ Sin argumentos, lista los backups disponibles numerados y pide elegir uno (o pas
 
 ## 7. Rotación de logs
 
-`backend/backend.log` se abre en modo *append* y **nunca se rota solo** — crece indefinidamente mientras el backend esté vivo.
+`/infocodes/logs/cso-incident-masivas-report/backend.log` se abre en modo *append* y **nunca se rota solo** — crece indefinidamente mientras el backend esté vivo.
 
 ```bash
 cd /infocodes/project/cso-incident-masivas-report/backend
@@ -147,12 +148,12 @@ Hace *copy-truncate*: copia `backend.log` a `backend.log.1` (desplazando las rot
 
 **Cron semanal recomendado** (domingo de madrugada):
 ```bash
-0 3 * * 0 /infocodes/project/cso-incident-masivas-report/backend/maintenance.sh rotate-logs >> /infocodes/project/cso-incident-masivas-report/backend/maintenance.log 2>&1
+0 3 * * 0 /infocodes/project/cso-incident-masivas-report/backend/maintenance.sh rotate-logs >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
 ```
 
-**Consultar un log rotado**: `tail -f backend/backend.log.1`, etc. — son ficheros de texto normales.
+**Consultar un log rotado**: `tail -f /infocodes/logs/cso-incident-masivas-report/backend.log.1`, etc. — son ficheros de texto normales.
 
-**`maintenance.log`** (la salida de las propias tareas de cron, no confundir con `backend.log`) crece muy despacio — un par de líneas por semana. No hace falta rotarlo; si algún día molesta, se puede truncar a mano sin ningún riesgo (`: > backend/maintenance.log`), ya que ningún proceso lo mantiene abierto de forma persistente.
+**`maintenance.log`** (la salida de las propias tareas de cron, no confundir con `backend.log`, ambos en `/infocodes/logs/cso-incident-masivas-report/`) crece muy despacio — un par de líneas por semana. No hace falta rotarlo; si algún día molesta, se puede truncar a mano sin ningún riesgo (`: > /infocodes/logs/cso-incident-masivas-report/maintenance.log`), ya que ningún proceso lo mantiene abierto de forma persistente.
 
 ---
 
@@ -200,7 +201,7 @@ rm -rf venv
 ### Error 500 al leer un informe antiguo tras añadir un campo nuevo al esquema
 **Síntoma**: `GET /api/reports/{id}` devuelve 500 para un informe concreto, aunque el resto funcionan bien.
 **Causa**: se añadió un campo obligatorio nuevo a `IncidentBase` (backend/schemas.py) sin valor por defecto; los informes guardados antes de ese cambio no tienen ese campo, y la respuesta falla al validarlos.
-**Cómo detectarlo**: `maintenance.sh healthcheck` **no** lo detecta — el `integrity_check` de SQLite solo comprueba que el fichero no esté corrupto a nivel de disco, no que los datos cumplan el esquema actual de la aplicación. Hay que fijarse en los logs del backend (`backend.log`) o en el error real del cliente.
+**Cómo detectarlo**: `maintenance.sh healthcheck` **no** lo detecta — el `integrity_check` de SQLite solo comprueba que el fichero no esté corrupto a nivel de disco, no que los datos cumplan el esquema actual de la aplicación. Hay que fijarse en los logs del backend (`/infocodes/logs/cso-incident-masivas-report/backend.log`) o en el error real del cliente.
 **Mitigación permanente**: cualquier campo nuevo en `IncidentBase` debe llevar un valor por defecto (`campo: bool = False`, etc.).
 
 ### Falso negativo del healthcheck por el proxy corporativo
@@ -247,7 +248,8 @@ curl --noproxy '*' http://localhost:8000/api/health         # backend directo
 curl --noproxy '*' http://localhost:8081/api/health         # a través de Nginx
 
 # Logs
-tail -f backend/backend.log                                  # backend en vivo
+tail -f /infocodes/logs/cso-incident-masivas-report/backend.log       # backend en vivo
+tail -f /infocodes/logs/cso-incident-masivas-report/maintenance.log   # tareas de cron
 tail -f /infocodes/nginx/logs/error.log                       # Nginx (errores)
 tail -f /infocodes/var/log/nginx/infocodes.access.log         # Nginx (accesos)
 

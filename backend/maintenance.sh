@@ -22,7 +22,8 @@ cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/lib.sh"
 
 DB_FILE="$SCRIPT_DIR/reports.db"
-LOG_FILE="$SCRIPT_DIR/backend.log"
+LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+LOG_FILE="$LOG_DIR/backend.log"
 BACKUP_DIR="/infocodes/backups/cso-incident-masivas-report"
 
 BACKUP_RETENTION=7
@@ -32,6 +33,8 @@ DISK_WARN_PCT=80
 DISK_FAIL_PCT=95
 LOG_SIZE_WARN_BYTES=52428800
 BACKUP_STALE_WARN_DAYS=8
+
+mkdir -p "$LOG_DIR"
 
 file_size() {
     stat -c%s "$1" 2>/dev/null || echo 0

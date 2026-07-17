@@ -97,7 +97,7 @@ chmod +x service.sh
 ./service.sh stop      # para de forma ordenada (SIGTERM, luego SIGKILL si no responde)
 ```
 
-Logs en `backend.log`, PID en `backend.pid` (ambos ignorados por git).
+Logs en `/infocodes/logs/cso-incident-masivas-report/backend.log` (fuera del árbol del repo), PID en `backend/backend.pid` (ignorado por git).
 
 **Verificar que está corriendo:**
 ```bash
@@ -192,7 +192,7 @@ cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status
 
 # Verificar logs
 tail -f /infocodes/nginx/logs/error.log
-tail -f /infocodes/project/cso-incident-masivas-report/backend/backend.log
+tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
 
 # Reiniciar
 ./service.sh restart
@@ -237,7 +237,7 @@ rm -f /infocodes/project/cso-incident-masivas-report/backend/reports.db-*
 tail -f /infocodes/var/log/nginx/infocodes.access.log | grep reportes
 
 # Logs de la API
-tail -f /infocodes/project/cso-incident-masivas-report/backend/backend.log
+tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
 
 # Verificar procesos
 watch -n 1 "cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status"
@@ -318,7 +318,7 @@ cd backend && ./service.sh restart
 **Logs útiles:**
 - Nginx (error): `/infocodes/nginx/logs/error.log`
 - Nginx (acceso): `/infocodes/var/log/nginx/infocodes.access.log`
-- API: `backend/backend.log`
+- API: `/infocodes/logs/cso-incident-masivas-report/backend.log`
 - Consola navegador: F12 → Console
 
 **Comandos de utilidad:**
@@ -342,4 +342,4 @@ df -h /infocodes
 ---
 
 **Última actualización:** 2026-07-17  
-**Versión:** 1.1
+**Versión:** 1.2

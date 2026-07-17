@@ -88,7 +88,7 @@ ps -ef | grep '[n]ginx: master process'                                    # Ver
 
 Si encuentras problemas, verifica:
 1. Los logs de Nginx: `/infocodes/var/log/nginx/infocodes.access.log` y `/infocodes/nginx/logs/error.log`
-2. Los logs del backend: `tail -f /infocodes/project/cso-incident-masivas-report/backend/backend.log`
+2. Los logs del backend: `tail -f /infocodes/logs/cso-incident-masivas-report/backend.log`
 3. La consola del navegador (F12 → Console)
 4. Que el servidor tiene acceso a internet (CDN de PptxGenJS/html2pdf, Google Fonts)
 
