@@ -321,9 +321,9 @@
                 '<option value="IT OSP/JZZ"' + sel(inc.group, 'IT OSP/JZZ') + '>IT OSP/JZZ</option>' +
                 '<option value="IT MM"' + sel(inc.group, 'IT MM') + '>IT MM</option>' +
                 '<option value="RED &gt;5.000 clientes"' + sel(inc.group, 'RED >5.000 clientes') + '>RED &gt;5.000 clientes</option>' +
-                '<option value="Otras RED"' + sel(inc.group, 'Otras RED') + '>Otras RED</option>' +
                 '<option value="RED - Relevantes por duración/Climatología/Escalados RRII"' + sel(inc.group, 'RED - Relevantes por duración/Climatología/Escalados RRII') + '>RED - Relevantes por duración/Climatología/Escalados RRII</option>' +
                 '<option value="RED - Impacto B2B"' + sel(inc.group, 'RED - Impacto B2B') + '>RED - Impacto B2B</option>' +
+                '<option value="Otras RED"' + sel(inc.group, 'Otras RED') + '>Otras RED</option>' +
               '</select>' +
             '</label>' +
             '<label><span style="' + lbl + '">Severidad</span>' +
@@ -374,7 +374,6 @@
     },
     coverTemplate() {
       const m = this.state.meta;
-      const c = this.computed();
       const logos = BRAND_LOGOS_COVER.map(([file, alt, h]) =>
         '<img src="assets/brands/' + file + '.png" alt="' + esc(alt) + '" style="height:' + h + 'px; width:auto; object-fit:contain;">'
       ).join('');
@@ -387,10 +386,6 @@
             '<h1 style="margin:0; font-size:88px; font-weight:800; line-height:0.98; letter-spacing:-0.025em;">Reporte de<br>incidencias<span style="color:#FF7900;"> IT + RED</span></h1>' +
           '</div>' +
           '<div style="position:absolute; left:64px; bottom:176px; font-size:17px; color:#8A857C; letter-spacing:0.02em;">' + esc(m.range) + '</div>' +
-          '<div style="position:absolute; right:64px; bottom:164px; display:flex; gap:34px; align-items:flex-end;">' +
-            '<div style="text-align:right;"><div style="font-size:40px; font-weight:800; line-height:1; color:#fff;">' + c.count + '</div><div style="font-size:13px; color:#8A857C; text-transform:uppercase; letter-spacing:0.1em; margin-top:6px;">Incidencias</div></div>' +
-            '<div style="text-align:right;"><div style="font-size:40px; font-weight:800; line-height:1; color:#FF7900;">' + esc(c.totalDuration) + '</div><div style="font-size:13px; color:#8A857C; text-transform:uppercase; letter-spacing:0.1em; margin-top:6px;">Tiempo acumulado</div></div>' +
-          '</div>' +
           '<div style="position:absolute; left:0; right:0; bottom:8px; background:#fff; padding:18px 44px; display:flex; flex-wrap:nowrap; align-items:center; justify-content:center; gap:18px;">' + logos + '</div>' +
           '<div style="position:absolute; left:0; bottom:0; width:100%; height:8px; background:#FF7900;"></div>' +
         '</section>'
