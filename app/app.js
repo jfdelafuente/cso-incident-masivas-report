@@ -321,9 +321,9 @@
                 '<option value="IT OSP/JZZ"' + sel(inc.group, 'IT OSP/JZZ') + '>IT OSP/JZZ</option>' +
                 '<option value="IT MM"' + sel(inc.group, 'IT MM') + '>IT MM</option>' +
                 '<option value="RED &gt;5.000 clientes"' + sel(inc.group, 'RED >5.000 clientes') + '>RED &gt;5.000 clientes</option>' +
-                '<option value="Otras RED"' + sel(inc.group, 'Otras RED') + '>Otras RED</option>' +
                 '<option value="RED - Relevantes por duración/Climatología/Escalados RRII"' + sel(inc.group, 'RED - Relevantes por duración/Climatología/Escalados RRII') + '>RED - Relevantes por duración/Climatología/Escalados RRII</option>' +
                 '<option value="RED - Impacto B2B"' + sel(inc.group, 'RED - Impacto B2B') + '>RED - Impacto B2B</option>' +
+                '<option value="Otras RED"' + sel(inc.group, 'Otras RED') + '>Otras RED</option>' +
               '</select>' +
             '</label>' +
             '<label><span style="' + lbl + '">Severidad</span>' +

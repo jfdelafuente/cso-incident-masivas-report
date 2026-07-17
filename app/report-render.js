@@ -70,9 +70,9 @@ const GROUP_ORDER = [
   'IT OSP/JZZ',
   'IT MM',
   'RED >5.000 clientes',
-  'Otras RED',
   'RED - Relevantes por duración/Climatología/Escalados RRII',
   'RED - Impacto B2B',
+  'Otras RED',
 ];
 
 // Sort key: group (per GROUP_ORDER; unrecognized groups sink after known
