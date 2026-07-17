@@ -19,8 +19,14 @@ FRONTEND_PATH="$DEPLOY_PATH/app"
 
 # 1. Clonar o actualizar repositorio
 log_info "Paso 1: Clonar/actualizar repositorio"
+# Se captura el commit previo (si ya existía un despliegue) para poder
+# revertir el código fácilmente si esta actualización sale mal -- se
+# recuerda en el resumen final, junto al comando exacto para hacerlo.
+PREV_COMMIT=""
 if [ -d "$DEPLOY_PATH" ]; then
     cd "$DEPLOY_PATH"
+    PREV_COMMIT="$(git rev-parse --short HEAD)"
+    log_info "Commit actual antes de actualizar: $PREV_COMMIT"
     git pull origin main
     log_success "Repositorio actualizado"
 else
@@ -59,6 +65,7 @@ log_success "Base de datos lista"
 
 # 4. Actualizar Nginx
 log_info "Paso 4: Actualizar configuración Nginx"
+log_warn "nginx.conf es COMPARTIDO con otras apps de este servidor: /static, /dashboards, /data, /problemas (Gestión de Problemas). Se hace backup automático antes de sobrescribir, con rollback si la validación falla."
 NGINX_BIN="/infocodes/nginx/sbin/nginx"
 NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
 NGINX_BACKUP="$NGINX_CONF.backup.$(date +%Y%m%d_%H%M%S)"
@@ -76,7 +83,15 @@ fi
 # 5. Iniciar/reiniciar backend
 log_info "Paso 5: Iniciar backend"
 cd "$DEPLOY_PATH/backend"
-chmod +x service.sh
+chmod +x service.sh maintenance.sh
+
+# Backup de reports.db antes de reiniciar, para tener un punto de
+# restauración fresco de este despliegue concreto (no solo el del cron
+# diario, que puede tener hasta 24h). No bloquea el despliegue si falla --
+# solo avisa, ya que el backup diario sigue siendo una red de seguridad.
+log_info "Backup de reports.db antes de reiniciar..."
+./maintenance.sh backup || log_warn "El backup automático falló -- considera ejecutar './maintenance.sh backup' manualmente antes de seguir"
+
 if BACKEND_PORT="$BACKEND_PORT" ./service.sh restart; then
     log_success "Backend corriendo en puerto $BACKEND_PORT"
 else
@@ -116,3 +131,8 @@ echo ""
 echo "✅ Estado:"
 (cd "$DEPLOY_PATH/backend" && ./service.sh status) || true
 echo ""
+if [ -n "$PREV_COMMIT" ]; then
+    echo "↩️  Para revertir este despliegue (código): cd $DEPLOY_PATH && git checkout $PREV_COMMIT"
+    echo "↩️  Para revertir datos: cd $DEPLOY_PATH/backend && ./maintenance.sh restore"
+    echo ""
+fi

@@ -72,5 +72,5 @@ Some incident fields hold delimited multi-line text parsed client-side into stru
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/001-executive-summary-dashboard/plan.md`
+`specs/002-junior-ops-deploy-docs/plan.md`
 <!-- SPECKIT END -->
