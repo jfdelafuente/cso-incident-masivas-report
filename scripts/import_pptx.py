@@ -193,6 +193,7 @@ def parse_incident_group(group_shape, group_label):
         "ministry": False,
         "platform": False,
         "externalOrigin": False,
+        "featured": False,
         "_flags": flags,
     }
 

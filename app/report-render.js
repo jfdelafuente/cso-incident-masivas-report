@@ -181,13 +181,22 @@ function truncateText(str, n) {
 // order of appearance so the result is 100% deterministic (same input
 // order always yields the same pick, across formats and re-generations).
 // Returns null when the area has no incidents that week.
+//
+// Manual override: if any incident in the area is flagged `featured`, the
+// automatic severity/duration ranking is disabled and the pick is made
+// only among the featured ones (falling back to the same tie-break rule
+// if more than one incident was marked, so the result stays deterministic
+// either way) -- this lets a report author pin a specific incident instead
+// of whichever one the algorithm would otherwise choose.
 function highlightIncident(incidents, area) {
   const candidates = (incidents || []).filter(i => areaOf(i.group) === area);
   if (!candidates.length) return null;
+  const featured = candidates.filter(i => i.featured);
+  const pool = featured.length ? featured : candidates;
   const rank = (i) => { const r = SEVERITY_KEYS_BY_AREA[area].indexOf(i.severity); return r === -1 ? Infinity : r; };
-  let best = candidates[0];
-  for (let idx = 1; idx < candidates.length; idx++) {
-    const c = candidates[idx];
+  let best = pool[0];
+  for (let idx = 1; idx < pool.length; idx++) {
+    const c = pool[idx];
     const rc = rank(c), rb = rank(best);
     if (rc < rb || (rc === rb && parseDurMin(c.duration) > parseDurMin(best.duration))) best = c;
   }

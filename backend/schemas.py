@@ -22,6 +22,7 @@ class IncidentBase(BaseModel):
     ministry: bool = False
     platform: bool = False
     externalOrigin: bool = False
+    featured: bool = False
 
 class ReportCreate(BaseModel):
     # Accepts either `created_by` or `createdBy` -- the latter is what a
