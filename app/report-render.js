@@ -101,6 +101,47 @@ function sortIncidents(incidents) {
   return (incidents || []).slice().sort(compareIncidents);
 }
 
+// Groups incidents that share the same Grupo+Severidad+Categoría onto a
+// single slide (up to 3 per slide) instead of one slide per incident.
+// Returns an array of "slide groups" (arrays of 1-3 incidents) covering
+// every input incident exactly once, in the same relative order as
+// sortIncidents() -- a grouped slide ends up at the position of its
+// earliest (first-encountered) member.
+//
+// Category is blank/missing => never groups, not even with another blank
+// one (an empty field isn't a real shared classification, just two
+// incidents that didn't fill it in) -- each such incident always gets its
+// own group of 1. Overflow (>3 incidents sharing a key) is handled by this
+// same single pass: the first 3 encountered form one group, and whatever
+// is left over (not yet consumed) starts its own group of up to 3 the next
+// time the loop reaches an unconsumed member with that key -- no second
+// pass or separate re-bucketing step needed.
+function groupKey(i) {
+  const cat = String(i.category || '').trim().toLowerCase();
+  return cat ? (i.group + '|' + i.severity + '|' + cat) : null;
+}
+function groupIncidentsForSlides(incidents) {
+  const sorted = sortIncidents(incidents);
+  const counts = {};
+  sorted.forEach(i => { const k = groupKey(i); if (k) counts[k] = (counts[k] || 0) + 1; });
+  const consumed = new Array(sorted.length).fill(false);
+  const groups = [];
+  sorted.forEach((inc, idx) => {
+    if (consumed[idx]) return;
+    const k = groupKey(inc);
+    consumed[idx] = true;
+    if (!k || counts[k] < 2) { groups.push([inc]); return; }
+    const bucket = [inc];
+    for (let j = idx + 1; j < sorted.length && bucket.length < 3; j++) {
+      if (consumed[j] || groupKey(sorted[j]) !== k) continue;
+      bucket.push(sorted[j]);
+      consumed[j] = true;
+    }
+    groups.push(bucket);
+  });
+  return groups;
+}
+
 function parseDurMin(s) {
   s = String(s || '');
   const h = (s.match(/(\d+)\s*h/) || [0, 0])[1];
@@ -350,63 +391,140 @@ function buildPptxDeck(P, meta, incidents) {
     });
   });
 
-  inc.forEach((it) => {
-    const sv = sev(it.severity);
-    const sl = P.addSlide(); sl.background = { color: WHITE };
-    sl.addShape(P.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 2.25, fill: { color: BLACK } });
-    sl.addText(it.group.toUpperCase(), { x: 0.55, y: 0.35, w: 7, h: 0.35, color: ORANGE, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
-    sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, fill: { color: sv.color.replace('#', '') }, rectRadius: 0.17 });
-    sl.addText(sv.label, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, align: 'center', color: WHITE, fontSize: 11, bold: true, fontFace: 'Arial' });
-    sl.addText(it.title || ((it.category || '') + (it.system ? ' · ' + it.system : '')), { x: 2.7, y: 0.78, w: 7.0, h: 1.1, color: WHITE, fontSize: 23, bold: true, fontFace: 'Arial', valign: 'middle', lineSpacingMultiple: 1 });
-    const meta2 = [['ID', it.ticket], ['FECHA', it.date], ['DURACIÓN', it.duration]];
-    meta2.forEach((mm, i) => {
-      const x = 9.9 + i * 1.13;
-      sl.addText(mm[0], { x, y: 0.4, w: 1.1, h: 0.3, color: GREY, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
-      sl.addText(String(mm[1] || '—'), { x, y: 0.72, w: 1.1, h: 1.0, color: i === 2 ? ORANGE : WHITE, fontSize: 11, bold: i === 2, fontFace: 'Arial' });
-    });
-    const colY = 2.5, colH = 4.2;
-    sl.addText('IMPACTO', { x: 0.55, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
-    sl.addShape(P.ShapeType.line, { x: 0.55, y: colY + 0.4, w: 1.0, h: 0, line: { color: ORANGE, width: 2.5 } });
-    const mets = metricsArr(it.metrics);
-    let yy = colY + 0.65;
-    mets.forEach(mt => {
-      sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: yy, w: 4.3, h: 0.42, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
-      sl.addText(mt.label, { x: 0.7, y: yy, w: 2.6, h: 0.42, color: MUT, fontSize: 11, valign: 'middle', fontFace: 'Arial' });
-      sl.addText(mt.value, { x: 3.0, y: yy, w: 1.75, h: 0.42, align: 'right', color: INK, fontSize: 12, bold: true, valign: 'middle', fontFace: 'Arial' });
-      yy += 0.5;
-    });
-    if (it.impact) sl.addText(it.impact, { x: 0.55, y: yy + 0.05, w: 4.35, h: colH - (yy - colY), color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
-    sl.addText('CAUSA', { x: 5.25, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
-    sl.addShape(P.ShapeType.line, { x: 5.25, y: colY + 0.4, w: 1.0, h: 0, line: { color: BLACK, width: 2.5 } });
-    sl.addText(it.cause || '', { x: 5.25, y: colY + 0.65, w: 3.55, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
-    sl.addText('SOLUCIÓN', { x: 9.15, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
-    sl.addShape(P.ShapeType.line, { x: 9.15, y: colY + 0.4, w: 1.0, h: 0, line: { color: '1D8754', width: 2.5 } });
-    const aps = actionPointsArr(it.actionPoints);
-    const apRowH = 0.58;
-    // Estimate the solution text's actual height instead of reserving the
-    // whole column (colH) for it — otherwise, for a short solution, the
-    // action point cards get pushed down near/past the footer bar and end
-    // up hidden behind it (drawn later = on top in PowerPoint's z-order).
-    const solText = it.solution || '';
-    const estSolutionLines = Math.max(1, Math.ceil(solText.length / 42));
-    const solutionH = Math.min(colH - 0.4, Math.max(0.4, estSolutionLines * 0.22 + 0.1));
-    sl.addText(solText, { x: 9.15, y: colY + 0.65, w: 3.65, h: solutionH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
-    let apY = colY + 0.65 + solutionH + 0.1;
-    aps.forEach(ap => {
-      sl.addShape(P.ShapeType.roundRect, { x: 9.15, y: apY, w: 3.65, h: apRowH - 0.08, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
-      const apHeader = [ap.ap, ap.tipo].filter(Boolean).join(' · ');
-      sl.addText(apHeader, { x: 9.3, y: apY + 0.03, w: 3.4, h: 0.22, color: '1D8754', fontSize: 10.5, bold: true, fontFace: 'Arial' });
-      sl.addText(ap.desc, { x: 9.3, y: apY + 0.24, w: 3.4, h: apRowH - 0.32, color: '26241F', fontSize: 10.5, fontFace: 'Arial', valign: 'top' });
-      apY += apRowH;
-    });
-    sl.addShape(P.ShapeType.rect, { x: 0, y: 6.95, w: 13.333, h: 0.55, fill: { color: 'F7F6F4' } });
-    sl.addText('MARCAS:  ' + (it.brands || '—'), { x: 0.55, y: 6.95, w: 8, h: 0.55, color: '5C5852', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+  // One panel of a grouped slide (2-3 incidents sharing Grupo+Severidad+
+  // Categoría, see groupIncidentsForSlides()): mini-header (ID/Fecha/
+  // Duración, bold + monospace so it reads as the visual anchor telling
+  // panels apart, per SC-003) + Impacto/Causa/Solución stacked vertically
+  // (not side-by-side sub-columns like the single-incident slide -- there
+  // isn't enough width per panel for that once split 2 or 3 ways) +
+  // Marcas/flags at the bottom, kept per-incident rather than merged since
+  // they can differ within the same group. Puntos de Acción only render
+  // when includeActionPoints is true (groups of 2, FR-005).
+  function addGroupPanel(sl, it, px, pw, isFirst, includeActionPoints) {
+    if (!isFirst) sl.addShape(P.ShapeType.line, { x: px - 0.15, y: 2.35, w: 0, h: 4.75, line: { color: LINE, width: 1.5 } });
+    sl.addText(titleOrCat0(it), { x: px, y: 2.35, w: pw, h: 0.55, color: INK, fontSize: 15, bold: true, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+    sl.addText(String(it.ticket || '—'), { x: px, y: 2.9, w: pw * 0.4, h: 0.24, color: INK, fontSize: 10, bold: true, fontFace: 'Courier New' });
+    sl.addText((it.date || '—') + '  ·  ' + (it.duration || '—'), { x: px + pw * 0.4, y: 2.9, w: pw * 0.6, h: 0.24, align: 'right', color: ORANGE, fontSize: 10, bold: true, fontFace: 'Arial' });
+    let yy = 3.22;
     const flags = [];
-    const pushFlag = (text, color) => { if (flags.length) flags.push({ text: '     ', options: {} }); flags.push({ text, options: { color, bold: true } }); };
-    if (it.ministry) pushFlag('● Reportada al Ministerio', ORANGE);
-    if (it.platform) pushFlag('● Impacto en plataforma', MUT);
-    if (it.externalOrigin) pushFlag('● Origen Externo', INK);
-    if (flags.length) sl.addText(flags, { x: 6.5, y: 6.95, w: 6.3, h: 0.55, align: 'right', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+    if (it.ministry) flags.push('Ministerio');
+    if (it.platform) flags.push('Plataforma');
+    if (it.externalOrigin) flags.push('Origen Externo');
+    if (flags.length) {
+      sl.addText(flags.map(f => '● ' + f).join('   '), { x: px, y: yy, w: pw, h: 0.2, color: ORANGE, fontSize: 8.5, bold: true, fontFace: 'Arial' });
+      yy += 0.28;
+    }
+    sl.addText('IMPACTO', { x: px, y: yy, w: pw, h: 0.22, color: MUT, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
+    yy += 0.24;
+    metricsArr(it.metrics).forEach(mt => {
+      sl.addText(mt.label + ':', { x: px, y: yy, w: pw * 0.62, h: 0.2, color: MUT, fontSize: 9.5, fontFace: 'Arial' });
+      sl.addText(mt.value, { x: px + pw * 0.62, y: yy, w: pw * 0.38, h: 0.2, align: 'right', color: INK, fontSize: 9.5, bold: true, fontFace: 'Arial' });
+      yy += 0.22;
+    });
+    if (it.impact) { sl.addText(it.impact, { x: px, y: yy, w: pw, h: 0.5, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 }); yy += 0.55; }
+    sl.addText('CAUSA', { x: px, y: yy, w: pw, h: 0.22, color: MUT, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
+    yy += 0.24;
+    sl.addText(it.cause || '', { x: px, y: yy, w: pw, h: 0.75, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
+    yy += 0.8;
+    sl.addText('SOLUCIÓN', { x: px, y: yy, w: pw, h: 0.22, color: MUT, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
+    yy += 0.24;
+    sl.addText(it.solution || '', { x: px, y: yy, w: pw, h: 0.75, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
+    yy += 0.8;
+    if (includeActionPoints) {
+      actionPointsArr(it.actionPoints).forEach(ap => {
+        const header = [ap.ap, ap.tipo].filter(Boolean).join(' · ');
+        sl.addText(header, { x: px, y: yy, w: pw, h: 0.18, color: '1D8754', fontSize: 8.5, bold: true, fontFace: 'Arial' });
+        sl.addText(ap.desc, { x: px, y: yy + 0.18, w: pw, h: 0.3, color: '26241F', fontSize: 8.5, fontFace: 'Arial', valign: 'top' });
+        yy += 0.5;
+      });
+    }
+    sl.addText('Marcas: ' + (it.brands || '—'), { x: px, y: 6.85, w: pw, h: 0.22, color: GREY, fontSize: 8.5, fontFace: 'Arial' });
+  }
+  function titleOrCat0(it) { return it.title || ((it.category || '') + (it.system ? ' · ' + it.system : '')); }
+
+  groupIncidentsForSlides(inc).forEach((group) => {
+    if (group.length === 1) {
+      const it = group[0];
+      const sv = sev(it.severity);
+      const sl = P.addSlide(); sl.background = { color: WHITE };
+      sl.addShape(P.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 2.25, fill: { color: BLACK } });
+      sl.addText(it.group.toUpperCase(), { x: 0.55, y: 0.35, w: 7, h: 0.35, color: ORANGE, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
+      sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, fill: { color: sv.color.replace('#', '') }, rectRadius: 0.17 });
+      sl.addText(sv.label, { x: 0.55, y: 1.62, w: 1.9, h: 0.34, align: 'center', color: WHITE, fontSize: 11, bold: true, fontFace: 'Arial' });
+      sl.addText(titleOrCat0(it), { x: 2.7, y: 0.78, w: 7.0, h: 1.1, color: WHITE, fontSize: 23, bold: true, fontFace: 'Arial', valign: 'middle', lineSpacingMultiple: 1 });
+      const meta2 = [['ID', it.ticket], ['FECHA', it.date], ['DURACIÓN', it.duration]];
+      meta2.forEach((mm, i) => {
+        const x = 9.9 + i * 1.13;
+        sl.addText(mm[0], { x, y: 0.4, w: 1.1, h: 0.3, color: GREY, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
+        sl.addText(String(mm[1] || '—'), { x, y: 0.72, w: 1.1, h: 1.0, color: i === 2 ? ORANGE : WHITE, fontSize: 11, bold: i === 2, fontFace: 'Arial' });
+      });
+      const colY = 2.5, colH = 4.2;
+      sl.addText('IMPACTO', { x: 0.55, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      sl.addShape(P.ShapeType.line, { x: 0.55, y: colY + 0.4, w: 1.0, h: 0, line: { color: ORANGE, width: 2.5 } });
+      const mets = metricsArr(it.metrics);
+      let yy = colY + 0.65;
+      mets.forEach(mt => {
+        sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: yy, w: 4.3, h: 0.42, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
+        sl.addText(mt.label, { x: 0.7, y: yy, w: 2.6, h: 0.42, color: MUT, fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+        sl.addText(mt.value, { x: 3.0, y: yy, w: 1.75, h: 0.42, align: 'right', color: INK, fontSize: 12, bold: true, valign: 'middle', fontFace: 'Arial' });
+        yy += 0.5;
+      });
+      if (it.impact) sl.addText(it.impact, { x: 0.55, y: yy + 0.05, w: 4.35, h: colH - (yy - colY), color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+      sl.addText('CAUSA', { x: 5.25, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      sl.addShape(P.ShapeType.line, { x: 5.25, y: colY + 0.4, w: 1.0, h: 0, line: { color: BLACK, width: 2.5 } });
+      sl.addText(it.cause || '', { x: 5.25, y: colY + 0.65, w: 3.55, h: colH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+      sl.addText('SOLUCIÓN', { x: 9.15, y: colY, w: 3, h: 0.35, color: INK, fontSize: 13, bold: true, charSpacing: 1, fontFace: 'Arial' });
+      sl.addShape(P.ShapeType.line, { x: 9.15, y: colY + 0.4, w: 1.0, h: 0, line: { color: '1D8754', width: 2.5 } });
+      const aps = actionPointsArr(it.actionPoints);
+      const apRowH = 0.58;
+      // Estimate the solution text's actual height instead of reserving the
+      // whole column (colH) for it — otherwise, for a short solution, the
+      // action point cards get pushed down near/past the footer bar and end
+      // up hidden behind it (drawn later = on top in PowerPoint's z-order).
+      const solText = it.solution || '';
+      const estSolutionLines = Math.max(1, Math.ceil(solText.length / 42));
+      const solutionH = Math.min(colH - 0.4, Math.max(0.4, estSolutionLines * 0.22 + 0.1));
+      sl.addText(solText, { x: 9.15, y: colY + 0.65, w: 3.65, h: solutionH, color: '26241F', fontSize: 12.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+      let apY = colY + 0.65 + solutionH + 0.1;
+      aps.forEach(ap => {
+        sl.addShape(P.ShapeType.roundRect, { x: 9.15, y: apY, w: 3.65, h: apRowH - 0.08, fill: { color: 'F7F6F4' }, rectRadius: 0.06 });
+        const apHeader = [ap.ap, ap.tipo].filter(Boolean).join(' · ');
+        sl.addText(apHeader, { x: 9.3, y: apY + 0.03, w: 3.4, h: 0.22, color: '1D8754', fontSize: 10.5, bold: true, fontFace: 'Arial' });
+        sl.addText(ap.desc, { x: 9.3, y: apY + 0.24, w: 3.4, h: apRowH - 0.32, color: '26241F', fontSize: 10.5, fontFace: 'Arial', valign: 'top' });
+        apY += apRowH;
+      });
+      sl.addShape(P.ShapeType.rect, { x: 0, y: 6.95, w: 13.333, h: 0.55, fill: { color: 'F7F6F4' } });
+      sl.addText('MARCAS:  ' + (it.brands || '—'), { x: 0.55, y: 6.95, w: 8, h: 0.55, color: '5C5852', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+      const flags = [];
+      const pushFlag = (text, color) => { if (flags.length) flags.push({ text: '     ', options: {} }); flags.push({ text, options: { color, bold: true } }); };
+      if (it.ministry) pushFlag('● Reportada al Ministerio', ORANGE);
+      if (it.platform) pushFlag('● Impacto en plataforma', MUT);
+      if (it.externalOrigin) pushFlag('● Origen Externo', INK);
+      if (flags.length) sl.addText(flags, { x: 6.5, y: 6.95, w: 6.3, h: 0.55, align: 'right', fontSize: 11, valign: 'middle', fontFace: 'Arial' });
+      return;
+    }
+
+    // Grupo de 2 o 3 incidencias con la misma Grupo+Severidad+Categoría:
+    // cabecera compartida (se muestran una sola vez, ya que son idénticas
+    // por definición) + un panel por incidencia con su propio contenido.
+    const first = group[0];
+    const sv = sev(first.severity);
+    const n = group.length;
+    const includeActionPoints = n === 2;
+    const sl = P.addSlide(); sl.background = { color: WHITE };
+    sl.addShape(P.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 2.1, fill: { color: BLACK } });
+    sl.addText(first.group.toUpperCase(), { x: 0.55, y: 0.4, w: 7, h: 0.35, color: ORANGE, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
+    sl.addShape(P.ShapeType.roundRect, { x: 0.55, y: 0.78, w: 1.9, h: 0.34, fill: { color: sv.color.replace('#', '') }, rectRadius: 0.17 });
+    sl.addText(sv.label, { x: 0.55, y: 0.78, w: 1.9, h: 0.34, align: 'center', color: WHITE, fontSize: 11, bold: true, fontFace: 'Arial' });
+    if (first.category) sl.addText(first.category, { x: 0.55, y: 1.2, w: 11, h: 0.6, color: WHITE, fontSize: 21, bold: true, fontFace: 'Arial', valign: 'top' });
+    sl.addText(n + ' incidencias con esta misma clasificación', { x: 0.55, y: 1.75, w: 11, h: 0.3, color: 'B8B2A9', fontSize: 11, fontFace: 'Arial' });
+
+    const marginX = 0.55, totalW = 13.333 - marginX * 2, gap = n === 2 ? 0.4 : 0.3;
+    const panelW = (totalW - gap * (n - 1)) / n;
+    group.forEach((it, idx) => {
+      const px = marginX + idx * (panelW + gap);
+      addGroupPanel(sl, it, px, panelW, idx === 0, includeActionPoints);
+    });
   });
 }
 
@@ -415,6 +533,6 @@ window.ReportRender = {
   parseDurMin, fmtDur, fmtK, num,
   metricsArr, actionPointsArr,
   BRAND_LOGOS_PPTX,
-  computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck,
+  computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, groupIncidentsForSlides, buildPptxDeck,
 };
 })();

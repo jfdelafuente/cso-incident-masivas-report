@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'mo_inc_report_v1';
 
   // Shared with home.js via report-render.js (loaded before this script).
-  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, buildPptxDeck } = window.ReportRender;
+  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, groupIncidentsForSlides, buildPptxDeck } = window.ReportRender;
 
   function defaultMeta() {
     return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
@@ -365,7 +365,10 @@
     // ---- deck rendering ----
     renderDeck() {
       if (!this.els.deck) return;
-      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + this.highlightsTemplate() + sortIncidents(this.state.incidents).map(inc => this.incidentSlideTemplate(inc)).join('');
+      const slidesHtml = groupIncidentsForSlides(this.state.incidents)
+        .map(group => group.length > 1 ? this.incidentGroupSlideTemplate(group) : this.incidentSlideTemplate(group[0]))
+        .join('');
+      const html = this.coverTemplate() + this.dashboardTemplate() + this.weekdayTemplate() + this.highlightsTemplate() + slidesHtml;
       this.els.deck.innerHTML = html;
       this.fit();
     },
@@ -620,6 +623,111 @@
             '</div>' +
             '<div style="font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · MASORANGE</div>' +
           '</div>' +
+        '</section>'
+      );
+    },
+
+    // Renders a slide shared by 2-3 incidents that all have the same
+    // Grupo+Severidad+Categoría (see groupIncidentsForSlides() in
+    // report-render.js): Grupo/Severidad/Categoría are shown once in the
+    // header instead of once per incident, since they're identical for the
+    // whole group by definition -- everything that CAN differ (ticket,
+    // date, duration, flags, brands, content) stays inside each incident's
+    // own panel. Groups of 1 don't call this -- they keep using
+    // incidentSlideTemplate() unchanged.
+    incidentGroupSlideTemplate(group) {
+      const first = group[0];
+      const s = sev(first.severity);
+      const n = group.length;
+      // Action points only fit for groups of 2 -- groups of 3 keep Causa/
+      // Solución in full but drop them, per FR-005.
+      const showActionPoints = n === 2;
+
+      const panelsHtml = group.map((inc, idx) => {
+        const metricList = metricsArr(inc.metrics);
+        const hasMetrics = metricList.length > 0;
+        const hasImpact = !!(inc.impact && inc.impact.trim());
+        const actionPointList = showActionPoints ? actionPointsArr(inc.actionPoints) : [];
+        const hasActionPoints = actionPointList.length > 0;
+        const brandList = String(inc.brands || '').split(',').map(x => x.trim()).filter(Boolean);
+        const flags = [];
+        if (inc.ministry) flags.push('Reportada al Ministerio');
+        if (inc.platform) flags.push('Impacto en plataforma');
+        if (inc.externalOrigin) flags.push('Origen Externo');
+
+        const metricsHtml = hasMetrics
+          ? '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">' +
+              metricList.map(m =>
+                '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:5px 9px; background:#F7F6F4; border-radius:6px;">' +
+                  '<span style="font-size:11px; color:#5C5852; font-weight:500;">' + esc(m.label) + '</span>' +
+                  '<span style="font-size:12.5px; font-weight:800; color:#0C0B09; font-family:\'Roboto Mono\',monospace; text-align:right;">' + esc(m.value) + '</span>' +
+                '</div>'
+              ).join('') +
+            '</div>'
+          : '';
+        const impactHtml = hasImpact ? '<div style="font-size:11.5px; line-height:1.4; color:#26241F; white-space:pre-line; margin-bottom:12px;">' + esc(inc.impact) + '</div>' : '';
+        const actionPointsHtml = hasActionPoints
+          ? '<div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">' +
+              actionPointList.map(a =>
+                '<div style="padding:6px 9px; background:#F7F6F4; border-radius:6px;">' +
+                  '<div style="display:flex; align-items:baseline; gap:6px; margin-bottom:2px;">' +
+                    '<span style="font-size:10.5px; font-weight:800; color:#1D8754; font-family:\'Roboto Mono\',monospace;">' + esc(a.ap) + '</span>' +
+                    (a.tipo ? '<span style="font-size:9.5px; font-weight:600; text-transform:uppercase; color:#5C5852;">' + esc(a.tipo) + '</span>' : '') +
+                  '</div>' +
+                  '<div style="font-size:11px; line-height:1.3; color:#26241F;">' + esc(a.desc) + '</div>' +
+                '</div>'
+              ).join('') +
+            '</div>'
+          : '';
+        const brandsHtml = brandList.length
+          ? '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:5px; align-items:center;">' +
+              '<span style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.08em; color:#8A857C;">Marcas</span>' +
+              brandList.map(name => '<span style="padding:2px 8px; border:1px solid #B8B2A9; border-radius:999px; font-size:10.5px; font-weight:600; color:#26241F;">' + esc(name) + '</span>').join('') +
+            '</div>'
+          : '';
+        const flagsHtml = flags.length
+          ? '<div style="margin-top:4px; font-size:10px; font-weight:700; color:#FF7900;">' + flags.map(f => '● ' + esc(f)).join('&nbsp;&nbsp;&nbsp;') + '</div>'
+          : '';
+
+        return (
+          // Left border (not on the first panel) is the visual divider that
+          // makes each incident's boundary unambiguous within the shared
+          // slide; the mini-header (ticket/fecha/duración, bold + monospace)
+          // is what a reader actually scans to tell panels apart (SC-003).
+          '<div style="flex:1; min-width:0; padding:22px 24px; ' + (idx > 0 ? 'border-left:2px solid #DEDAD3;' : '') + ' display:flex; flex-direction:column; min-height:0;">' +
+            '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding-bottom:10px; border-bottom:2px solid #B8B2A9; margin-bottom:12px;">' +
+              '<div style="font-size:14px; font-weight:800; color:#0C0B09; line-height:1.25;">' + esc(titleOrCat(inc)) + (inc.system ? '<div style="font-size:11px; font-weight:500; color:#8A857C; margin-top:2px;">' + esc(inc.system) + '</div>' : '') + '</div>' +
+              '<div style="flex:none; text-align:right; font-size:10.5px; color:#8A857C; white-space:nowrap;">' +
+                '<div style="font-weight:700; font-family:\'Roboto Mono\',monospace; color:#26241F;">' + esc(inc.ticket || '—') + '</div>' +
+                '<div>' + esc(inc.date || '—') + '</div>' +
+                '<div style="color:#FF7900; font-weight:700;">' + esc(inc.duration || '—') + '</div>' +
+              '</div>' +
+            '</div>' +
+            flagsHtml +
+            '<div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8A857C; margin:10px 0 6px;">Impacto</div>' +
+            metricsHtml + impactHtml +
+            '<div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8A857C; margin:6px 0 6px;">Causa</div>' +
+            '<div style="font-size:11.5px; line-height:1.4; color:#26241F; white-space:pre-line; margin-bottom:10px;">' + esc(inc.cause) + '</div>' +
+            '<div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8A857C; margin:6px 0 6px;">Solución</div>' +
+            '<div style="font-size:11.5px; line-height:1.4; color:#26241F; white-space:pre-line;">' + esc(inc.solution) + '</div>' +
+            actionPointsHtml +
+            brandsHtml +
+          '</div>'
+        );
+      }).join('');
+
+      return (
+        '<section class="mo-slide" style="position:relative; width:1280px; height:720px; flex:none; background:#fff; color:#0C0B09; overflow:hidden; box-shadow:0 18px 50px rgba(0,0,0,.45); display:flex; flex-direction:column;">' +
+          '<div style="background:#000; color:#fff; padding:30px 56px 22px;">' +
+            '<div style="display:flex; align-items:center; gap:14px; margin-bottom:10px;">' +
+              '<span style="font-size:15px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#FF7900;">' + esc(first.group) + '</span>' +
+              '<span style="display:inline-flex; align-items:center; gap:7px; padding:5px 13px; border-radius:999px; background:' + s.color + '; font-size:12.5px; font-weight:700; color:#fff; letter-spacing:0.02em;">' + esc(s.label) + '</span>' +
+            '</div>' +
+            (first.category ? '<h2 style="margin:0; font-size:26px; font-weight:800; line-height:1.15; letter-spacing:-0.01em;">' + esc(first.category) + '</h2>' : '') +
+            '<div style="margin-top:6px; font-size:13px; color:#B8B2A9; font-weight:500;">' + n + ' incidencias con esta misma clasificación</div>' +
+          '</div>' +
+          '<div style="flex:1; display:flex; min-height:0;">' + panelsHtml + '</div>' +
+          '<div style="flex:none; padding:12px 56px; border-top:1px solid #EFEDE9; background:#F7F6F4; text-align:right; font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · MASORANGE</div>' +
         '</section>'
       );
     },

@@ -2,7 +2,7 @@
   "use strict";
 
 // Shared with app.js via report-render.js (loaded before this script).
-const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, highlightIncident, truncateText, weekdayBreakdown, sortIncidents, buildPptxDeck } = window.ReportRender;
+const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, highlightIncident, truncateText, weekdayBreakdown, sortIncidents, groupIncidentsForSlides, buildPptxDeck } = window.ReportRender;
 
 const HomePage = {
   reports: [],
@@ -409,6 +409,27 @@ const HomePage = {
             .brands { margin-top: 15px; padding-top: 15px; border-top: 1px solid #DEDAD3; font-size: 11px; }
             .flags { margin-top: 10px; }
             .flag { font-size: 11px; margin: 5px 0; }
+
+            /* Grupo de incidencias con la misma Grupo+Severidad+Categoría
+               en una sola slide (ver groupIncidentsForSlides()): cabecera
+               compartida (se muestra una sola vez, ya que Grupo/Severidad/
+               Categoría son idénticos por definición) + un panel por
+               incidencia, separados por un borde visible para que cada
+               una sea inequívocamente distinguible (SC-003). */
+            .incident-group-header { background: #000; color: #fff; padding: 15px; margin: -20mm -20mm 20px -20mm; }
+            .incident-group-header .category { font-size: 22px; font-weight: bold; margin: 8px 0 4px; }
+            .incident-group-header .subtitle { font-size: 12px; color: #B8B2A9; }
+            .incident-panels { display: flex; gap: 0; }
+            .incident-panel { flex: 1; min-width: 0; padding: 0 14px; }
+            .incident-panel:not(:first-child) { border-left: 2px solid #DEDAD3; }
+            .incident-panel .mini-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #B8B2A9; padding-bottom: 8px; margin-bottom: 8px; }
+            .incident-panel .mini-title { font-size: 13px; font-weight: bold; }
+            .incident-panel .mini-meta { font-size: 10px; color: #8A857C; text-align: right; white-space: nowrap; }
+            .incident-panel .mini-meta .ticket { font-weight: bold; color: #26241F; }
+            .incident-panel .mini-meta .dur { color: #FF7900; font-weight: bold; }
+            .incident-panel h4 { color: #26241F; font-size: 11px; font-weight: bold; margin: 8px 0 4px; padding-bottom: 3px; border-bottom: 2px solid #FF7900; }
+            .incident-panel p { font-size: 10px; line-height: 1.4; color: #5C5852; white-space: pre-line; }
+            .incident-panel .brands { margin-top: 8px; padding-top: 8px; font-size: 9.5px; }
           </style>
         </head>
         <body>
@@ -516,67 +537,117 @@ const HomePage = {
           </div>
 
           <!-- Incidencias -->
-          ${inc.map((it, idx) => {
-            const sv = sev(it.severity);
-            const sevColor = sv.color.replace('#', '');
-            return `
-              <div class="page incident">
-                <div class="incident-header">
-                  <div class="severity-badge" style="background: ${sv.color};">${sv.label}</div>
-                  <h3>${it.title || it.category}</h3>
-                  <div class="meta">${it.group} · ${it.system || '—'}</div>
-                </div>
+          ${groupIncidentsForSlides(inc).map((group) => {
+            if (group.length === 1) {
+              const it = group[0];
+              const sv = sev(it.severity);
+              return `
+                <div class="page incident">
+                  <div class="incident-header">
+                    <div class="severity-badge" style="background: ${sv.color};">${sv.label}</div>
+                    <h3>${it.title || it.category}</h3>
+                    <div class="meta">${it.group} · ${it.system || '—'}</div>
+                  </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                  <div>
-                    <div style="font-size: 10px; color: #8A857C; font-weight: bold;">ID</div>
-                    <div style="font-size: 12px;">${it.ticket || '—'}</div>
-                  </div>
-                  <div>
-                    <div style="font-size: 10px; color: #8A857C; font-weight: bold;">FECHA</div>
-                    <div style="font-size: 12px;">${it.date || '—'}</div>
-                  </div>
-                  <div>
-                    <div style="font-size: 10px; color: #8A857C; font-weight: bold;">DURACIÓN</div>
-                    <div style="font-size: 12px; color: #FF7900; font-weight: bold;">${it.duration || '—'}</div>
-                  </div>
-                </div>
-
-                <div class="incident-content">
-                  <div>
-                    <div class="incident-section">
-                      <h4>IMPACTO</h4>
-                      <p>${it.impact || '—'}</p>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div>
+                      <div style="font-size: 10px; color: #8A857C; font-weight: bold;">ID</div>
+                      <div style="font-size: 12px;">${it.ticket || '—'}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 10px; color: #8A857C; font-weight: bold;">FECHA</div>
+                      <div style="font-size: 12px;">${it.date || '—'}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 10px; color: #8A857C; font-weight: bold;">DURACIÓN</div>
+                      <div style="font-size: 12px; color: #FF7900; font-weight: bold;">${it.duration || '—'}</div>
                     </div>
                   </div>
-                  <div>
-                    <div class="incident-section">
-                      <h4>CAUSA</h4>
-                      <p>${it.cause || '—'}</p>
+
+                  <div class="incident-content">
+                    <div>
+                      <div class="incident-section">
+                        <h4>IMPACTO</h4>
+                        <p>${it.impact || '—'}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="incident-section">
+                        <h4>CAUSA</h4>
+                        <p>${it.cause || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="incident-section" style="margin-top: 15px;">
+                    <h4>SOLUCIÓN</h4>
+                    <p>${it.solution || '—'}</p>
+                  </div>
+
+                  <div class="incident-section" style="margin-top: 15px;">
+                    <h4>ACTION POINTS</h4>
+                    ${actionPointsArr(it.actionPoints).length
+                      ? actionPointsArr(it.actionPoints).map(ap => `<p><strong>${[ap.ap, ap.tipo].filter(Boolean).join(' · ')}:</strong> ${ap.desc}</p>`).join('')
+                      : '<p>—</p>'}
+                  </div>
+
+                  <div class="brands">
+                    <strong>Marcas afectadas:</strong> ${it.brands || '—'}
+                    <div class="flags">
+                      ${it.ministry ? '<div class="flag">● Reportada al Ministerio</div>' : ''}
+                      ${it.platform ? '<div class="flag">● Impacto en plataforma</div>' : ''}
+                      ${it.externalOrigin ? '<div class="flag">● Origen Externo</div>' : ''}
                     </div>
                   </div>
                 </div>
+              `;
+            }
 
-                <div class="incident-section" style="margin-top: 15px;">
+            // Grupo de 2 o 3 incidencias con la misma Grupo+Severidad+
+            // Categoría (ver groupIncidentsForSlides()): cabecera compartida
+            // (se muestra una sola vez) + un panel por incidencia, separados
+            // por un borde visible (.incident-panel + su mini-cabecera en
+            // negrita) para que cada una sea inequívocamente distinguible
+            // (SC-003). Grupos de 3 omiten ACTION POINTS (FR-005).
+            const first = group[0];
+            const sv = sev(first.severity);
+            const includeActionPoints = group.length === 2;
+            const panelsHtml = group.map(it => {
+              const flags = [
+                it.ministry ? '● Reportada al Ministerio' : '',
+                it.platform ? '● Impacto en plataforma' : '',
+                it.externalOrigin ? '● Origen Externo' : '',
+              ].filter(Boolean);
+              return `
+                <div class="incident-panel">
+                  <div class="mini-header">
+                    <div class="mini-title">${it.title || it.category || ''}${it.system ? ` · ${it.system}` : ''}</div>
+                    <div class="mini-meta"><span class="ticket">${it.ticket || '—'}</span><br>${it.date || '—'} · <span class="dur">${it.duration || '—'}</span></div>
+                  </div>
+                  ${flags.length ? `<div class="flags" style="margin:0 0 6px;">${flags.map(f => `<div class="flag" style="font-size:9.5px;">${f}</div>`).join('')}</div>` : ''}
+                  <h4>IMPACTO</h4>
+                  <p>${it.impact || '—'}</p>
+                  <h4>CAUSA</h4>
+                  <p>${it.cause || '—'}</p>
                   <h4>SOLUCIÓN</h4>
                   <p>${it.solution || '—'}</p>
-                </div>
-
-                <div class="incident-section" style="margin-top: 15px;">
+                  ${includeActionPoints ? `
                   <h4>ACTION POINTS</h4>
                   ${actionPointsArr(it.actionPoints).length
                     ? actionPointsArr(it.actionPoints).map(ap => `<p><strong>${[ap.ap, ap.tipo].filter(Boolean).join(' · ')}:</strong> ${ap.desc}</p>`).join('')
-                    : '<p>—</p>'}
+                    : '<p>—</p>'}` : ''}
+                  <div class="brands"><strong>Marcas:</strong> ${it.brands || '—'}</div>
                 </div>
-
-                <div class="brands">
-                  <strong>Marcas afectadas:</strong> ${it.brands || '—'}
-                  <div class="flags">
-                    ${it.ministry ? '<div class="flag">● Reportada al Ministerio</div>' : ''}
-                    ${it.platform ? '<div class="flag">● Impacto en plataforma</div>' : ''}
-                    ${it.externalOrigin ? '<div class="flag">● Origen Externo</div>' : ''}
-                  </div>
+              `;
+            }).join('');
+            return `
+              <div class="page incident">
+                <div class="incident-group-header">
+                  <span class="severity-badge" style="background: ${sv.color};">${sv.label}</span>
+                  <div class="category">${first.category || ''}</div>
+                  <div class="subtitle">${first.group} · ${group.length} incidencias con esta misma clasificación</div>
                 </div>
+                <div class="incident-panels">${panelsHtml}</div>
               </div>
             `;
           }).join('')}
