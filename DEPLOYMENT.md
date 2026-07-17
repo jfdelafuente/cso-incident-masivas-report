@@ -105,11 +105,11 @@ curl --noproxy '*' http://localhost:8000/api/health
 # Debe responder: {"status":"ok","service":"Reportes de Incidencias API"}
 ```
 
-> ⚠️ Si la sesión tiene `http_proxy`/`https_proxy` definidas (habitual en este servidor), `curl` enruta incluso `localhost` a través del proxy corporativo, que responde `403 Forbidden` aunque el backend esté sano. Usa siempre `--noproxy '*'` para comprobaciones locales — `service.sh` ya lo hace internamente.
+> ⚠️ Si la sesión tiene `http_proxy`/`https_proxy` definidas (habitual en este servidor), `curl` enruta incluso `localhost` a través del proxy corporativo, que responde `403 Forbidden` aunque el backend esté sano. Usa siempre `--noproxy '*'` para comprobaciones locales — `service.sh` ya lo hace internamente. Si un `curl` contra la IP/dominio público del propio servidor (`10.132.68.85:8081` o `infocodes.si.orange.es:8081`) devuelve el mismo `403` estando todo sano, prueba también con `--noproxy '*'` — depende de cómo esté configurado el proxy en esa sesión concreta.
 
 ### 6. Configurar Nginx
 
-El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/project/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
+El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, `/problemas` — el dashboard "Gestión de Problemas", Next.js con pm2 —, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/project/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
 
 En este servidor, Nginx corre desde una instalación propia bajo `/infocodes/nginx`, con el binario en `/infocodes/nginx/sbin/nginx` y la configuración en `/infocodes/nginx/conf/nginx.conf`. Como todo el árbol `/infocodes` es propiedad del usuario `infocodes` (uid=2001) con el que se opera — sin root ni systemd —, estas operaciones **no llevan `sudo`**.
 
@@ -341,5 +341,5 @@ df -h /infocodes
 
 ---
 
-**Última actualización:** 2026-07-03  
-**Versión:** 1.0
+**Última actualización:** 2026-07-17  
+**Versión:** 1.1
