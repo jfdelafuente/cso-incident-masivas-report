@@ -14,6 +14,18 @@
 #   al mismo inodo tras el truncado.
 # - healthcheck: backend, nginx, disco, integridad de la BD, tamaño de logs
 #   y antigüedad del último backup, en un único vistazo.
+#
+# Todas las operaciones de SQLite (backup, integrity_check, recuento de
+# filas) se hacen con `python3 -c ...` usando el módulo `sqlite3` de la
+# librería estándar, NO con el binario `sqlite3` de línea de comandos --
+# en el servidor de producción existe en /infocodes/sqlite3/bin, pero no
+# está en el $PATH por defecto, así que depender de él exigiría o bien
+# codificar esa ruta concreta aquí, o bien confiar en que el $PATH de
+# quien ejecute el script (a mano o por cron) lo incluya. `python3` ya es
+# una dependencia obligatoria del propio backend (service.sh lo usa para
+# arrancar la app) y su `sqlite3` va integrado en el intérprete estándar
+# de CPython sin paquetes adicionales, así que evita ese problema por
+# completo.
 
 set -u
 
@@ -40,6 +52,41 @@ file_size() {
     stat -c%s "$1" 2>/dev/null || echo 0
 }
 
+# Copia $1 (origen) en $2 (destino) usando el Online Backup API de SQLite
+# vía el módulo estándar de Python -- consistente aunque el backend esté
+# escribiendo en ese momento, igual que haría `sqlite3 origen ".backup destino"`.
+sqlite_backup() {
+    python3 -c "
+import sqlite3, sys
+src = sqlite3.connect(sys.argv[1])
+dst = sqlite3.connect(sys.argv[2])
+with dst:
+    src.backup(dst)
+src.close()
+dst.close()
+" "$1" "$2"
+}
+
+# Imprime el resultado de PRAGMA integrity_check sobre el fichero $1 (normalmente "ok").
+sqlite_integrity_check() {
+    python3 -c "
+import sqlite3, sys
+conn = sqlite3.connect(sys.argv[1])
+print(conn.execute('PRAGMA integrity_check;').fetchone()[0])
+conn.close()
+" "$1" 2>&1
+}
+
+# Imprime el número de filas de la tabla reports del fichero $1.
+sqlite_count_reports() {
+    python3 -c "
+import sqlite3, sys
+conn = sqlite3.connect(sys.argv[1])
+print(conn.execute('SELECT COUNT(*) FROM reports;').fetchone()[0])
+conn.close()
+" "$1" 2>&1
+}
+
 backup() {
     mkdir -p "$BACKUP_DIR"
 
@@ -52,14 +99,14 @@ backup() {
     dest="$BACKUP_DIR/reports_$(date +%Y%m%d_%H%M%S).db"
 
     log_info "Creando backup: $dest"
-    if ! sqlite3 "$DB_FILE" ".backup '$dest'"; then
-        log_error "Fallo al ejecutar .backup"
+    if ! sqlite_backup "$DB_FILE" "$dest"; then
+        log_error "Fallo al ejecutar el backup"
         rm -f "$dest"
         return 1
     fi
 
     local check
-    check="$(sqlite3 "$dest" "PRAGMA integrity_check;" 2>&1)"
+    check="$(sqlite_integrity_check "$dest")"
     if [ "$check" != "ok" ]; then
         log_error "El backup generado no pasa integrity_check: $check"
         rm -f "$dest"
@@ -109,7 +156,7 @@ restore() {
     cp "$chosen" "$DB_FILE"
 
     local check
-    check="$(sqlite3 "$DB_FILE" "PRAGMA integrity_check;" 2>&1)"
+    check="$(sqlite_integrity_check "$DB_FILE")"
     if [ "$check" != "ok" ]; then
         log_error "El fichero restaurado NO pasa integrity_check: $check"
         log_error "Restaura el snapshot de seguridad de arriba o prueba otro backup antes de arrancar el backend"
@@ -181,10 +228,10 @@ healthcheck() {
     log_info "=== Integridad de la base de datos ==="
     if [ -f "$DB_FILE" ]; then
         local check
-        check="$(sqlite3 "$DB_FILE" "PRAGMA integrity_check;" 2>&1)"
+        check="$(sqlite_integrity_check "$DB_FILE")"
         if [ "$check" = "ok" ]; then
             local n
-            n="$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM reports;" 2>&1)"
+            n="$(sqlite_count_reports "$DB_FILE")"
             log_success "integrity_check: ok ($n informes)"
         else
             log_error "integrity_check falló: $check"

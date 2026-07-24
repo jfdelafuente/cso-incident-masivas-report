@@ -39,8 +39,9 @@ Guía completa para desplegar la aplicación "Automatización de reportes semana
 ```bash
 python3 --version
 nginx -v
-sqlite3 --version
 ```
+
+> No hace falta el binario `sqlite3` de línea de comandos — ni `deploy.sh` ni `maintenance.sh` dependen de él (usan el módulo `sqlite3` de la librería estándar de Python en su lugar, ver sección "Base de datos" más abajo). Existe en el servidor (`/infocodes/sqlite3/bin/sqlite3`), pero no está en el `$PATH` por defecto; en vez de depender de esa ruta concreta (o de que cada sesión/cron tenga el `$PATH` correcto), se usa Python, que ya es una dependencia obligatoria del backend.
 
 ---
 
@@ -178,7 +179,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 
 ### Base de datos
 - [ ] `ls -la /infocodes/project/cso-incident-masivas-report/backend/reports.db` existe
-- [ ] Puedes consultar: `sqlite3 reports.db "SELECT COUNT(*) FROM reports;"`
+- [ ] Puedes consultar: `python3 -c "import sqlite3; print(sqlite3.connect('reports.db').execute('SELECT COUNT(*) FROM reports;').fetchone()[0])"` (no hay binario `sqlite3` en el servidor — se usa el módulo estándar de Python, ver nota más abajo)
 
 ---
 
@@ -243,14 +244,14 @@ tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
 watch -n 1 "cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status"
 ```
 
-**Estadísticas de base de datos:**
+**Estadísticas de base de datos** (sin el binario `sqlite3` — existe en `/infocodes/sqlite3/bin/sqlite3` pero no está en el `$PATH` por defecto; se usa el módulo `sqlite3` de Python en su lugar, la misma vía que ya usa `maintenance.sh` internamente):
 ```bash
-sqlite3 /infocodes/project/cso-incident-masivas-report/backend/reports.db <<EOF
-SELECT 'Reportes' as tabla, COUNT(*) as cantidad FROM reports;
-SELECT 'Usuarios' as tabla, COUNT(*) as cantidad FROM reports WHERE createdBy IS NOT NULL;
-.tables
-.schema
-EOF
+python3 -c "
+import sqlite3
+conn = sqlite3.connect('/infocodes/project/cso-incident-masivas-report/backend/reports.db')
+print('Reportes:', conn.execute('SELECT COUNT(*) FROM reports;').fetchone()[0])
+print('Tablas:', [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table';\").fetchall()])
+"
 ```
 
 ---
