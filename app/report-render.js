@@ -406,12 +406,32 @@ function buildPptxDeck(P, meta, incidents) {
   // Marcas/flags at the bottom, kept per-incident rather than merged since
   // they can differ within the same group. Puntos de Acción only render
   // when includeActionPoints is true (groups of 2, FR-005).
+  // Estimates the rendered height of a text block instead of reserving a
+  // fixed box for it (same reasoning as the single-incident slide's
+  // solutionH estimate above) -- PptxGenJS doesn't measure text or push
+  // following shapes down when a box overflows, so a fixed height here
+  // would make longer Causa/Solución/Impacto text visually overlap the
+  // next section. Calibrated against the single-incident slide's ratio
+  // (42 chars/line at fontSize 12.5 in a 3.65in-wide column).
+  function estTextH(text, pw, fontSize) {
+    const charsPerLine = Math.max(8, 42 * (pw / 3.65) * (12.5 / fontSize));
+    const lines = Math.max(1, Math.ceil(String(text || '').length / charsPerLine));
+    return lines * 0.17 * (fontSize / 9.5) + 0.08;
+  }
+
   function addGroupPanel(sl, it, px, pw, isFirst, includeActionPoints) {
     if (!isFirst) sl.addShape(P.ShapeType.line, { x: px - 0.15, y: 2.35, w: 0, h: 4.75, line: { color: LINE, width: 1.5 } });
-    sl.addText(titleOrCat0(it), { x: px, y: 2.35, w: pw, h: 0.55, color: INK, fontSize: 15, bold: true, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
-    sl.addText(String(it.ticket || '—'), { x: px, y: 2.9, w: pw * 0.4, h: 0.24, color: INK, fontSize: 10, bold: true, fontFace: 'Courier New' });
-    sl.addText((it.date || '—') + '  ·  ' + (it.duration || '—'), { x: px + pw * 0.4, y: 2.9, w: pw * 0.6, h: 0.24, align: 'right', color: ORANGE, fontSize: 10, bold: true, fontFace: 'Arial' });
-    let yy = 3.22;
+    // Capped rather than fully open-ended: a long title in a narrow panel
+    // (3-incident groups) can wrap to several lines, so it needs more than
+    // the one-line height a fixed box would give it (same overlap problem
+    // as Causa/Solución below) -- but an unbounded title would crowd out
+    // the rest of the panel's content, so it's capped at ~3 lines.
+    const titleH = Math.min(0.95, Math.max(0.4, estTextH(titleOrCat0(it), pw, 15)));
+    sl.addText(titleOrCat0(it), { x: px, y: 2.35, w: pw, h: titleH, color: INK, fontSize: 15, bold: true, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.05 });
+    const metaY = 2.35 + titleH + 0.05;
+    sl.addText(String(it.ticket || '—'), { x: px, y: metaY, w: pw * 0.4, h: 0.24, color: INK, fontSize: 10, bold: true, fontFace: 'Courier New' });
+    sl.addText((it.date || '—') + '  ·  ' + (it.duration || '—'), { x: px + pw * 0.4, y: metaY, w: pw * 0.6, h: 0.24, align: 'right', color: ORANGE, fontSize: 10, bold: true, fontFace: 'Arial' });
+    let yy = metaY + 0.32;
     const flags = [];
     if (it.ministry) flags.push('Ministerio');
     if (it.platform) flags.push('Plataforma');
@@ -427,24 +447,34 @@ function buildPptxDeck(P, meta, incidents) {
       sl.addText(mt.value, { x: px + pw * 0.62, y: yy, w: pw * 0.38, h: 0.2, align: 'right', color: INK, fontSize: 9.5, bold: true, fontFace: 'Arial' });
       yy += 0.22;
     });
-    if (it.impact) { sl.addText(it.impact, { x: px, y: yy, w: pw, h: 0.5, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 }); yy += 0.55; }
+    if (it.impact) {
+      const impactH = estTextH(it.impact, pw, 9.5);
+      sl.addText(it.impact, { x: px, y: yy, w: pw, h: impactH, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
+      yy += impactH + 0.05;
+    }
     sl.addText('CAUSA', { x: px, y: yy, w: pw, h: 0.22, color: MUT, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
     yy += 0.24;
-    sl.addText(it.cause || '', { x: px, y: yy, w: pw, h: 0.75, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
-    yy += 0.8;
+    const causeH = estTextH(it.cause, pw, 9.5);
+    sl.addText(it.cause || '', { x: px, y: yy, w: pw, h: causeH, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
+    yy += causeH + 0.05;
     sl.addText('SOLUCIÓN', { x: px, y: yy, w: pw, h: 0.22, color: MUT, fontSize: 9, bold: true, charSpacing: 1, fontFace: 'Arial' });
     yy += 0.24;
-    sl.addText(it.solution || '', { x: px, y: yy, w: pw, h: 0.75, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
-    yy += 0.8;
+    const solutionH = estTextH(it.solution, pw, 9.5);
+    sl.addText(it.solution || '', { x: px, y: yy, w: pw, h: solutionH, color: '26241F', fontSize: 9.5, fontFace: 'Arial', valign: 'top', lineSpacingMultiple: 1.02 });
+    yy += solutionH + 0.05;
     if (includeActionPoints) {
       actionPointsArr(it.actionPoints).forEach(ap => {
         const header = [ap.ap, ap.tipo].filter(Boolean).join(' · ');
+        const descH = estTextH(ap.desc, pw, 8.5);
         sl.addText(header, { x: px, y: yy, w: pw, h: 0.18, color: '1D8754', fontSize: 8.5, bold: true, fontFace: 'Arial' });
-        sl.addText(ap.desc, { x: px, y: yy + 0.18, w: pw, h: 0.3, color: '26241F', fontSize: 8.5, fontFace: 'Arial', valign: 'top' });
-        yy += 0.5;
+        sl.addText(ap.desc, { x: px, y: yy + 0.18, w: pw, h: descH, color: '26241F', fontSize: 8.5, fontFace: 'Arial', valign: 'top' });
+        yy += 0.18 + descH + 0.06;
       });
     }
-    sl.addText('Marcas: ' + (it.brands || '—'), { x: px, y: 6.85, w: pw, h: 0.22, color: GREY, fontSize: 8.5, fontFace: 'Arial' });
+    // max() with the fixed baseline keeps Marcas aligned across panels for
+    // the common case, but still guarantees it never sits on top of a
+    // panel whose Causa/Solución/Puntos de Acción ran long.
+    sl.addText('Marcas: ' + (it.brands || '—'), { x: px, y: Math.max(yy + 0.05, 6.85), w: pw, h: 0.22, color: GREY, fontSize: 8.5, fontFace: 'Arial' });
   }
   function titleOrCat0(it) { return it.title || ((it.category || '') + (it.system ? ' · ' + it.system : '')); }
 
