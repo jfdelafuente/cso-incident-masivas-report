@@ -102,11 +102,22 @@ Si la lista no está vacía, instala las dependencias de Chrome headless
 sudo apt update
 sudo apt install -y \
   ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
-  libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 \
-  libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 \
-  libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
-  libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6
+  libatspi2.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
+  libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 \
+  libpangocairo-1.0-0 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 \
+  libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
+  libxss1 libxtst6
 ```
+
+> Confirmado en el servidor real (Ubuntu/Debian, sin acceso sudo del
+> operador habitual): faltaban exactamente `libnspr4`, `libnss3` (+
+> `libnssutil3`/`libsmime3`, del mismo paquete), `libatk-bridge2.0-0`,
+> `libatk1.0-0`, `libatspi2.0-0`, `libcups2`, `libxcb1`, `libx11-6`,
+> `libxcomposite1`, `libxdamage1`, `libxext6`, `libxfixes3`, `libxrandr2`,
+> `libgbm1`, `libcairo2`, `libpango-1.0-0`, `libasound2` — el listado
+> completo de arriba ya los cubre a todos. Como el operador habitual no
+> tiene sudo, esta instalación la tiene que ejecutar una sola vez alguien
+> con permisos de administrador en el servidor.
 
 (En Rocky Linux/RHEL, usa `dnf install` con los paquetes equivalentes —
 `nss`, `atk`, `at-spi2-atk`, `cups-libs`, `libXcomposite`, `libXdamage`,
