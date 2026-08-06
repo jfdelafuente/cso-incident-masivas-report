@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
@@ -49,6 +49,7 @@ RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
 # compartan exactamente el mismo contrato de éxito/error.
 sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
 from upload_csv import run_upload  # noqa: E402
+from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
 
 @app.post("/api/upload")
 async def upload_dashboard_csv(
@@ -71,6 +72,33 @@ async def upload_dashboard_csv(
 
     result = run_upload(csv_path, type, RELEASE_DASHBOARD_ROOT, release_name)
     return JSONResponse(status_code=200 if result["success"] else 500, content=result)
+
+# ============ Informe PPT de Postmortem por Release ============
+# Misma orquestación compartida que /api/upload: la lógica vive una sola vez
+# en converters/cli/generate_postmortem_report.py (repo release-dashboard-application).
+
+@app.get("/api/reports/postmortem/{release_name}")
+def download_postmortem_report(release_name: str):
+    """Genera (o regenera) el informe .pptx de una release y lo devuelve como descarga."""
+    try:
+        result = generate_report(release_name, project_root=RELEASE_DASHBOARD_ROOT)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo generar el informe: {e}")
+
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    pptx_path = Path(result["path"])
+    return Response(
+        content=pptx_path.read_bytes(),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{pptx_path.name}"'},
+    )
+
+@app.post("/api/reports/postmortem/batch")
+def generate_postmortem_reports_batch():
+    """Genera el informe de todas las releases con datos de postmortem disponibles."""
+    return generate_all_reports(project_root=RELEASE_DASHBOARD_ROOT)
 
 # ============ CRUD Operations ============
 
