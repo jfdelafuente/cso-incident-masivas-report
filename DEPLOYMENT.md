@@ -34,6 +34,9 @@ Guía completa para desplegar la aplicación "Automatización de reportes semana
 - Nginx (ya instalado)
 - SQLite3 (incluido en Python)
 - Git (para clonar el repositorio)
+- Google Chrome (solo para el informe PPT de Postmortem por Release — ver paso 3)
+- Librerías de sistema para Chrome headless (ver paso 3) — **requiere sudo**,
+  a diferencia del resto de este paso que se instala dentro del venv
 
 **Verificar:**
 ```bash
@@ -74,7 +77,51 @@ source venv/bin/activate  # En Windows: venv\Scripts\activate
 
 # Instalar dependencias
 pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
+
+# kaleido (usado para renderizar las gráficas del informe PPT de Postmortem
+# por Release) necesita Chrome instalado desde la versión 1.x en adelante —
+# sin este paso, la descarga del informe falla con "Kaleido requires
+# Google Chrome to be installed". Se instala en el propio venv, sin sudo:
+plotly_get_chrome -y
 ```
+
+En servidores mínimos (sin entorno de escritorio) el Chrome descargado por
+`plotly_get_chrome` puede arrancar y cerrarse al instante por faltar
+librerías del sistema (error: *"The browser seemed to close immediately
+after starting"*). Comprueba qué falta (no necesita sudo, no ejecuta
+Chrome):
+
+```bash
+ldd ~/.local/share/choreographer/deps/chrome-linux64/chrome | grep "not found"
+```
+
+Si la lista no está vacía, instala las dependencias de Chrome headless
+(esto sí necesita sudo, a diferencia de todo lo anterior):
+
+```bash
+sudo apt update
+sudo apt install -y \
+  ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
+  libatspi2.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
+  libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 \
+  libpangocairo-1.0-0 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 \
+  libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
+  libxss1 libxtst6
+```
+
+> Confirmado en el servidor real (Ubuntu/Debian, sin acceso sudo del
+> operador habitual): faltaban exactamente `libnspr4`, `libnss3` (+
+> `libnssutil3`/`libsmime3`, del mismo paquete), `libatk-bridge2.0-0`,
+> `libatk1.0-0`, `libatspi2.0-0`, `libcups2`, `libxcb1`, `libx11-6`,
+> `libxcomposite1`, `libxdamage1`, `libxext6`, `libxfixes3`, `libxrandr2`,
+> `libgbm1`, `libcairo2`, `libpango-1.0-0`, `libasound2` — el listado
+> completo de arriba ya los cubre a todos. Como el operador habitual no
+> tiene sudo, esta instalación la tiene que ejecutar una sola vez alguien
+> con permisos de administrador en el servidor.
+
+(En Rocky Linux/RHEL, usa `dnf install` con los paquetes equivalentes —
+`nss`, `atk`, `at-spi2-atk`, `cups-libs`, `libXcomposite`, `libXdamage`,
+`libXrandr`, `mesa-libgbm`, `pango`, `alsa-lib`, etc.)
 
 ### 4. Configurar la base de datos
 
@@ -305,6 +352,9 @@ git pull origin main
 # Si hay cambios en requirements.txt:
 source backend/venv/bin/activate
 pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r backend/requirements.txt
+
+# Si kaleido se instala o actualiza por primera vez (ver "Requisitos previos"):
+plotly_get_chrome -y
 
 # Reiniciar API
 cd backend && ./service.sh restart
