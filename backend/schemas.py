@@ -3,22 +3,22 @@ from typing import List, Optional
 from datetime import datetime
 
 class IncidentBase(BaseModel):
-    group: str
-    severity: str
-    category: str
-    system: str
-    title: str
-    ticket: str
-    date: str
-    duration: str
-    impact: str
-    metrics: str
-    cause: str
-    solution: str
+    group: str = ""
+    severity: str = "SL2"
+    category: str = ""
+    system: str = ""
+    title: str = ""
+    ticket: str = ""
+    date: str = ""
+    duration: str = ""
+    impact: str = ""
+    metrics: str = ""
+    cause: str = ""
+    solution: str = ""
     actionPoints: str = ""
-    cFTTH: str
-    cMobile: str
-    brands: str
+    cFTTH: str = ""
+    cMobile: str = ""
+    brands: str = ""
     ministry: bool = False
     platform: bool = False
     externalOrigin: bool = False
@@ -42,6 +42,8 @@ class ReportCreate(BaseModel):
     notes: Optional[str] = None
 
 class ReportUpdate(BaseModel):
+    range: Optional[str] = None
+    dept: Optional[str] = None
     incidents: Optional[List[IncidentBase]] = None
     status: Optional[str] = None
     notes: Optional[str] = None

@@ -21,9 +21,19 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app = FastAPI(title="Reportes de Incidencias API", version="1.0.0")
 
 # CORS configuration - allow frontend
+allowed_origins_env = os.environ.get("CORS_ORIGINS", "")
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()] or [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://10.132.68.85:8081",
+    "http://infocodes.si.orange.es:8081",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,8 +58,17 @@ RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
 # que este backend y el servidor de desarrollo de ese repo (serve_app.py)
 # compartan exactamente el mismo contrato de éxito/error.
 sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
-from upload_csv import run_upload  # noqa: E402
-from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
+try:
+    from upload_csv import run_upload  # noqa: E402
+    from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
+    DASHBOARD_INTEGRATION_AVAILABLE = True
+except ImportError:
+    run_upload = None
+    generate_report = None
+    generate_all_reports = None
+    DASHBOARD_INTEGRATION_AVAILABLE = False
+
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB límite
 
 @app.post("/api/upload")
 async def upload_dashboard_csv(
@@ -58,6 +77,9 @@ async def upload_dashboard_csv(
     release_name: str = Form(None),
 ):
     """Guarda un CSV de Release Dashboard en data/input y lo convierte a JSON"""
+    if not DASHBOARD_INTEGRATION_AVAILABLE:
+        return JSONResponse(status_code=503, content={"success": False, "error": "Módulo de integración con Release Dashboard no disponible"})
+
     filename = Path(file.filename).name
     if not filename.lower().endswith(".csv"):
         return JSONResponse(status_code=400, content={"success": False, "error": "El archivo debe tener extensión .csv"})
@@ -65,10 +87,14 @@ async def upload_dashboard_csv(
     if type == "postmortem" and not release_name:
         return JSONResponse(status_code=400, content={"success": False, "error": "Falta el nombre de la release (release_name)"})
 
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        return JSONResponse(status_code=413, content={"success": False, "error": f"El archivo supera el tamaño máximo permitido ({MAX_UPLOAD_SIZE // (1024 * 1024)}MB)"})
+
     input_dir = RELEASE_DASHBOARD_ROOT / "data" / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
     csv_path = input_dir / filename
-    csv_path.write_bytes(await file.read())
+    csv_path.write_bytes(content)
 
     result = run_upload(csv_path, type, RELEASE_DASHBOARD_ROOT, release_name)
     return JSONResponse(status_code=200 if result["success"] else 500, content=result)
@@ -80,6 +106,9 @@ async def upload_dashboard_csv(
 @app.get("/api/reports/postmortem/{release_name}")
 def download_postmortem_report(release_name: str):
     """Genera (o regenera) el informe .pptx de una release y lo devuelve como descarga."""
+    if not DASHBOARD_INTEGRATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de generación de informes postmortem no disponible")
+
     try:
         result = generate_report(release_name, project_root=RELEASE_DASHBOARD_ROOT)
     except Exception as e:
@@ -98,6 +127,8 @@ def download_postmortem_report(release_name: str):
 @app.post("/api/reports/postmortem/batch")
 def generate_postmortem_reports_batch():
     """Genera el informe de todas las releases con datos de postmortem disponibles."""
+    if not DASHBOARD_INTEGRATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de generación de informes postmortem no disponible")
     return generate_all_reports(project_root=RELEASE_DASHBOARD_ROOT)
 
 # ============ CRUD Operations ============
@@ -145,11 +176,15 @@ def get_report(report_id: str, db: Session = Depends(get_db)):
 
 @app.put("/api/reports/{report_id}", response_model=ReportResponse)
 def update_report(report_id: str, update: ReportUpdate, db: Session = Depends(get_db)):
-    """Update a report's incidents, status, or notes"""
+    """Update a report's incidents, status, notes, range, or dept"""
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    if update.range is not None:
+        report.range = update.range
+    if update.dept is not None:
+        report.dept = update.dept
     if update.incidents is not None:
         report.incidents = [inc.model_dump() for inc in update.incidents]
     if update.status is not None:
@@ -221,4 +256,5 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("BACKEND_PORT", os.environ.get("PORT", 8000)))
+    uvicorn.run(app, host="0.0.0.0", port=port)

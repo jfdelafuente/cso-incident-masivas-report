@@ -8,6 +8,7 @@ to be reconstructed from (x, y) position instead.
 
 Usage: python dump_pptx_shapes.py archivo.pptx
 """
+from pathlib import Path
 import sys
 from pptx import Presentation
 from pptx.util import Emu
@@ -31,8 +32,16 @@ def walk(shapes, depth=0):
 
 
 def main():
-    path = sys.argv[1]
-    prs = Presentation(path)
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("Uso: python dump_pptx_shapes.py <archivo.pptx>")
+        sys.exit(0 if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help") else 1)
+
+    file_path = Path(sys.argv[1])
+    if not file_path.is_file():
+        print(f"Error: El archivo '{file_path}' no existe o no es un fichero válido.", file=sys.stderr)
+        sys.exit(1)
+
+    prs = Presentation(str(file_path))
     for i, slide in enumerate(prs.slides, 1):
         print(f"\n=================== SLIDE {i} ===================")
         walk(slide.shapes)
