@@ -166,7 +166,9 @@ const ReportEditor = {
 
     try {
       const update = {
-        incidents: App.state.incidents,
+        range: document.getElementById('metaRange')?.value || '',
+        dept: document.getElementById('metaDept')?.value || '',
+        incidents: App?.state?.incidents || [],
       };
 
       await ApiClient.updateReport(this.currentReportId, update);
@@ -214,6 +216,7 @@ const ReportEditor = {
       }
     } else {
       // Update existing
+      this.isDirty = true;
       await this.autoSave();
       alert('✓ Informe guardado');
     }

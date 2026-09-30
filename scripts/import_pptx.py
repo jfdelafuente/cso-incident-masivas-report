@@ -21,8 +21,10 @@ incidents themselves if omitted.
 """
 import argparse
 import json
+from pathlib import Path
 import re
 import sys
+import urllib.error
 import urllib.request
 
 from pptx import Presentation
@@ -242,7 +244,8 @@ def parse_pptx(path):
 def infer_year_week(path, year, week):
     if year and week:
         return year, week
-    m = re.search(r"(\d{4})W(\d{2})", path)
+    filename = Path(path).name
+    m = re.search(r"(\d{4})W(\d{2})", filename)
     if m:
         return year or int(m.group(1)), week or int(m.group(2))
     return year, week
@@ -272,7 +275,12 @@ def main():
     ap.add_argument("--post-url", default=None, help="e.g. http://localhost:8000 -- POSTs the report directly instead of/as well as writing JSON")
     args = ap.parse_args()
 
-    incidents, warnings = parse_pptx(args.pptx)
+    pptx_path = Path(args.pptx)
+    if not pptx_path.is_file():
+        print(f"ERROR: El archivo PPTX '{pptx_path}' no existe o no es un fichero válido.", file=sys.stderr)
+        sys.exit(1)
+
+    incidents, warnings = parse_pptx(str(pptx_path))
     year, week = infer_year_week(args.pptx, args.year, args.week)
     if not year or not week:
         print("ERROR: no se pudo inferir year/week del nombre de fichero, pásalos con --year/--week", file=sys.stderr)
@@ -306,16 +314,20 @@ def main():
 
     if args.post_url:
         data = json.dumps(report).encode("utf-8")
+        target_url = args.post_url.rstrip("/")
         req = urllib.request.Request(
-            f"{args.post_url}/api/reports", data=data,
+            f"{target_url}/api/reports", data=data,
             headers={"Content-Type": "application/json"}, method="POST",
         )
         try:
-            with urllib.request.urlopen(req) as resp:
-                print(f"POST {args.post_url}/api/reports -> {resp.status}")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                print(f"POST {target_url}/api/reports -> {resp.status}")
                 print(resp.read().decode("utf-8")[:500])
         except urllib.error.HTTPError as e:
-            print(f"POST falló: {e.code} {e.read().decode('utf-8')}", file=sys.stderr)
+            print(f"POST falló con error HTTP {e.code}: {e.read().decode('utf-8')}", file=sys.stderr)
+            sys.exit(1)
+        except urllib.error.URLError as e:
+            print(f"POST falló: no se pudo conectar al backend ({target_url}): {e.reason}", file=sys.stderr)
             sys.exit(1)
 
 

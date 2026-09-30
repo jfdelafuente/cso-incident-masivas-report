@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'mo_inc_report_v1';
 
   // Shared with home.js via report-render.js (loaded before this script).
-  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, groupIncidentsForSlides, buildPptxDeck } = window.ReportRender;
+  const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, groupIncidentsForSlides, buildPptxDeck, downloadPptx } = window.ReportRender;
 
   function defaultMeta() {
     return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
@@ -814,12 +814,11 @@
       a.click();
     },
     exportPPTX() {
-      if (!window.PptxGenJS) { alert('La librería de PowerPoint aún se está cargando, inténtalo de nuevo en unos segundos.'); return; }
-      const P = new window.PptxGenJS();
-      P.defineLayout({ name: 'W', width: 13.333, height: 7.5 });
-      P.layout = 'W';
-      buildPptxDeck(P, this.state.meta, this.state.incidents);
-      P.writeFile({ fileName: this.fileBase() + '.pptx' });
+      try {
+        downloadPptx(this.state.meta, this.state.incidents, this.fileBase() + '.pptx');
+      } catch (error) {
+        alert(error.message);
+      }
     },
   };
 
