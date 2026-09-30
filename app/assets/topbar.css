@@ -1,0 +1,67 @@
+/* ============================================================
+   Release Dashboard — barra superior MASORANGE
+   ============================================================
+   Compartida por TODOS los dashboards (clásicos + release-kpis).
+   Extraído de shared.css para que un dashboard que no
+   necesita el resto del framework (upload, kpi-card, tabla, badges)
+   pueda usar solo la topbar sin cargar CSS inerte.
+   ============================================================ */
+
+.mo-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: #000;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 0 26px;
+    height: 66px;
+    border-bottom: 1px solid #26241F;
+}
+
+.mo-topbar img {
+    height: 30px;
+    width: auto;
+}
+
+.mo-topbar-sep {
+    width: 1px;
+    height: 24px;
+    background: #33302B;
+}
+
+.mo-topbar-dept {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: #9E988E;
+    white-space: nowrap;
+}
+
+.mo-topbar-nav {
+    display: flex;
+    gap: 2px;
+    margin-left: 14px;
+}
+
+.mo-topbar-nav a {
+    text-decoration: none;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #9E988E;
+    padding: 8px 14px;
+    border-bottom: 2px solid transparent;
+    transition: color .2s ease;
+}
+
+.mo-topbar-nav a:hover {
+    color: #fff;
+}
+
+.mo-topbar-nav a.active {
+    color: #fff;
+    border-bottom-color: #FF7900;
+}
