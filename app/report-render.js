@@ -272,7 +272,13 @@ function buildPptxDeck(P, meta, incidents) {
   const v = computeStats(inc);
 
   let s = P.addSlide(); s.background = { color: BLACK };
-  s.addText([{ text: '+', options: { color: ORANGE, bold: true } }, { text: 'O', options: { color: WHITE, bold: true } }], { x: 0.5, y: 0.45, w: 2, h: 0.8, fontSize: 40, fontFace: 'Arial' });
+  try {
+    s.addImage({ path: 'assets/orange-logo.svg', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
+  } catch (e) {
+    try {
+      s.addImage({ path: 'assets/brands/orange.png', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
+    } catch (e2) {}
+  }
   s.addText(m.dept, { x: 8.3, y: 0.55, w: 4.5, h: 0.4, align: 'right', color: 'B8B2A9', fontSize: 13, fontFace: 'Arial' });
   s.addText((m.year + ' · SEMANA ' + m.week).toUpperCase(), { x: 0.5, y: 3.7, w: 10, h: 0.4, color: ORANGE, fontSize: 16, bold: true, charSpacing: 3, fontFace: 'Arial' });
   s.addText([{ text: 'Reporte de incidencias ', options: { color: WHITE } }, { text: 'IT + RED', options: { color: ORANGE } }], { x: 0.48, y: 3.95, w: 11, h: 1.5, fontSize: 54, bold: true, fontFace: 'Arial', lineSpacingMultiple: 0.95 });
@@ -665,6 +671,7 @@ function buildPdfHtml(report, incidents) {
     <body>
       <!-- Portada -->
       <div class="page cover">
+        <img src="assets/orange-logo.svg" alt="Orange" style="height: 60px; width: 60px; margin-bottom: 30px;">
         <h1>Reporte de Incidencias</h1>
         <div class="subtitle">${esc(report.year)} · SEMANA ${esc(report.week)}</div>
         <p style="margin-top: 30px; font-size: 16px;">${esc(report.range)}</p>
