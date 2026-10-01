@@ -7,6 +7,8 @@ echo Backend API - Reportes de Incidencias
 echo ================================================
 echo.
 
+cd /d "%~dp0"
+
 REM Check if venv exists, if not create it
 if not exist "venv" (
     echo Creando entorno virtual...

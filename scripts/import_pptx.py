@@ -27,7 +27,10 @@ import sys
 import urllib.error
 import urllib.request
 
-from pptx import Presentation
+try:
+    from pptx import Presentation
+except ImportError:
+    Presentation = None
 
 # Windows consoles default to cp1252, which can't encode the emoji/accented
 # characters this script prints -- force UTF-8 regardless of the terminal.
@@ -245,7 +248,7 @@ def infer_year_week(path, year, week):
     if year and week:
         return year, week
     filename = Path(path).name
-    m = re.search(r"(\d{4})W(\d{2})", filename)
+    m = re.search(r"(\d{4})[_\-\s]?[wW](\d{1,2})", filename)
     if m:
         return year or int(m.group(1)), week or int(m.group(2))
     return year, week
@@ -261,7 +264,14 @@ def infer_range(incidents):
         return ""
     dates.sort()
     d0, d1 = dates[0], dates[-1]
-    return f"{d0[2]}-{d1[2]} de {['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][int(d1[1]) - 1]}"
+    months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    m0, m1 = int(d0[1]) - 1, int(d1[1]) - 1
+    if m0 == m1 and d0[0] == d1[0]:
+        return f"{d0[2]} – {d1[2]} {months[m1]} {d1[0]}"
+    elif d0[0] == d1[0]:
+        return f"{d0[2]} {months[m0]} – {d1[2]} {months[m1]} {d1[0]}"
+    else:
+        return f"{d0[2]} {months[m0]} {d0[0]} – {d1[2]} {months[m1]} {d1[0]}"
 
 
 def main():
@@ -274,6 +284,15 @@ def main():
     ap.add_argument("-o", "--output", default=None)
     ap.add_argument("--post-url", default=None, help="e.g. http://localhost:8000 -- POSTs the report directly instead of/as well as writing JSON")
     args = ap.parse_args()
+
+    if Presentation is None:
+        print(
+            "ERROR: La librería 'python-pptx' no está instalada.\n"
+            "Instálala con:\n"
+            "  pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org python-pptx",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     pptx_path = Path(args.pptx)
     if not pptx_path.is_file():
@@ -319,8 +338,12 @@ def main():
             f"{target_url}/api/reports", data=data,
             headers={"Content-Type": "application/json"}, method="POST",
         )
+        handlers = []
+        if any(h in target_url for h in ("localhost", "127.0.0.1", "::1")):
+            handlers.append(urllib.request.ProxyHandler({}))
+        opener = urllib.request.build_opener(*handlers)
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with opener.open(req, timeout=30) as resp:
                 print(f"POST {target_url}/api/reports -> {resp.status}")
                 print(resp.read().decode("utf-8")[:500])
         except urllib.error.HTTPError as e:

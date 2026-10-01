@@ -16,4 +16,11 @@ echo ""
 echo "Presiona Ctrl+C para detener el servidor"
 echo ""
 
-python -m http.server 8080
+if command -v python3 >/dev/null 2>&1; then
+    python3 -m http.server 8080
+elif command -v python >/dev/null 2>&1; then
+    python -m http.server 8080
+else
+    echo "Error: No se encontró Python (python3 o python) en el sistema." >&2
+    exit 1
+fi

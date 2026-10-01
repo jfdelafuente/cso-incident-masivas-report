@@ -8,10 +8,17 @@ echo "Backend API - Reportes de Incidencias"
 echo "================================================"
 echo ""
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Check if venv exists, if not create it
 if [ ! -d "venv" ]; then
     echo "Creando entorno virtual..."
-    python3 -m venv venv
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -m venv venv
+    else
+        python -m venv venv
+    fi
 fi
 
 # Activate venv

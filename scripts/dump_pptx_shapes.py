@@ -10,8 +10,12 @@ Usage: python dump_pptx_shapes.py archivo.pptx
 """
 from pathlib import Path
 import sys
-from pptx import Presentation
-from pptx.util import Emu
+try:
+    from pptx import Presentation
+    from pptx.util import Emu
+except ImportError:
+    Presentation = None
+    Emu = None
 
 
 def emu_to_in(v):
@@ -35,6 +39,15 @@ def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
         print("Uso: python dump_pptx_shapes.py <archivo.pptx>")
         sys.exit(0 if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help") else 1)
+
+    if Presentation is None:
+        print(
+            "ERROR: La librería 'python-pptx' no está instalada.\n"
+            "Instálala con:\n"
+            "  pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org python-pptx",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     file_path = Path(sys.argv[1])
     if not file_path.is_file():
