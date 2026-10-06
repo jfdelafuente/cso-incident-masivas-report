@@ -18,6 +18,26 @@ BACKEND_PORT=8000
 FRONTEND_PATH="$DEPLOY_PATH/app"
 LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
 
+# 0. Backup preventivo de base de datos
+# Si ya existe una instalación previa con datos, se realiza un backup
+# ANTES de actualizar código o modificar esquemas, garantizando un punto de
+# restauración seguro e inalterado ante cualquier fallo durante el despliegue.
+if [ -f "$DEPLOY_PATH/backend/reports.db" ]; then
+    log_info "Paso 0: Backup preventivo de reports.db antes de actualizar"
+    if [ -f "$DEPLOY_PATH/backend/maintenance.sh" ]; then
+        chmod +x "$DEPLOY_PATH/backend/maintenance.sh" 2>/dev/null || true
+        (cd "$DEPLOY_PATH/backend" && ./maintenance.sh backup) || {
+            log_warn "El backup vía maintenance.sh falló; creando copia directa de seguridad..."
+            mkdir -p "/infocodes/backups/cso-incident-masivas-report"
+            cp "$DEPLOY_PATH/backend/reports.db" "/infocodes/backups/cso-incident-masivas-report/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
+        }
+    else
+        mkdir -p "/infocodes/backups/cso-incident-masivas-report"
+        cp "$DEPLOY_PATH/backend/reports.db" "/infocodes/backups/cso-incident-masivas-report/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
+    fi
+    log_success "Backup preventivo completado"
+fi
+
 # 1. Clonar o actualizar repositorio
 log_info "Paso 1: Clonar/actualizar repositorio"
 # Se captura el commit previo (si ya existía un despliegue) para poder
@@ -104,13 +124,6 @@ fi
 log_info "Paso 5: Iniciar backend"
 cd "$DEPLOY_PATH/backend"
 chmod +x service.sh maintenance.sh
-
-# Backup de reports.db antes de reiniciar, para tener un punto de
-# restauración fresco de este despliegue concreto (no solo el del cron
-# diario, que puede tener hasta 24h). No bloquea el despliegue si falla --
-# solo avisa, ya que el backup diario sigue siendo una red de seguridad.
-log_info "Backup de reports.db antes de reiniciar..."
-./maintenance.sh backup || log_warn "El backup automático falló -- considera ejecutar './maintenance.sh backup' manualmente antes de seguir"
 
 if BACKEND_PORT="$BACKEND_PORT" ./service.sh restart; then
     log_success "Backend corriendo en puerto $BACKEND_PORT"
