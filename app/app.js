@@ -186,6 +186,7 @@
       on('btnExportJSON', 'click', () => this.exportJSON());
       on('btnExportPDF', 'click', () => window.print());
       on('btnExportPPTX', 'click', () => this.exportPPTX());
+      on('btnExportLegacyPPTX', 'click', () => this.exportLegacyPPTX());
 
       if (this.els.incidentsList) {
         this.els.incidentsList.addEventListener('click', (e) => this.onListClick(e));
@@ -616,7 +617,7 @@
               '<span style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:#8A857C; margin-right:4px;">Marcas</span>' +
               brandsHtml +
             '</div>' +
-            '<div style="font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · MASORANGE</div>' +
+            '<div style="font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · Orange</div>' +
           '</div>' +
         '</section>'
       );
@@ -722,7 +723,7 @@
             '<div style="margin-top:6px; font-size:13px; color:#B8B2A9; font-weight:500;">' + n + ' incidencias con esta misma clasificación</div>' +
           '</div>' +
           '<div style="flex:1; display:flex; min-height:0;">' + panelsHtml + '</div>' +
-          '<div style="flex:none; padding:12px 56px; border-top:1px solid #EFEDE9; background:#F7F6F4; text-align:right; font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · MASORANGE</div>' +
+          '<div style="flex:none; padding:12px 56px; border-top:1px solid #EFEDE9; background:#F7F6F4; text-align:right; font-size:11px; color:#B8B2A9; letter-spacing:0.04em; font-weight:600;">' + esc(this.coverWeek()) + ' · Orange</div>' +
         '</section>'
       );
     },
@@ -818,6 +819,38 @@
         downloadPptx(this.state.meta, this.state.incidents, this.fileBase() + '.pptx');
       } catch (error) {
         alert(error.message);
+      }
+    },
+    async exportLegacyPPTX() {
+      try {
+        const payload = {
+          year: this.state.meta.year,
+          week: this.state.meta.week,
+          range: this.state.meta.range,
+          dept: this.state.meta.dept,
+          incidents: sortIncidents(this.state.incidents),
+        };
+        const baseUrl = typeof ApiClient !== 'undefined' ? ApiClient.baseURL : '';
+        const response = await fetch(`${baseUrl}/api/reports/export/legacy-pptx`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ detail: response.statusText }));
+          throw new Error(err.detail || `HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${this.fileBase()}_Legacy.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch (error) {
+        alert('Error al exportar PowerPoint Legacy: ' + error.message);
       }
     },
   };

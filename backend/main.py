@@ -12,8 +12,23 @@ import sys
 from models import Base, Report
 from schemas import ReportCreate, ReportUpdate, ReportResponse
 
+# ============ Legacy PPTX Export ============
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+try:
+    from export_legacy_pptx import generate_legacy_pptx_bytes
+    LEGACY_PPTX_AVAILABLE = True
+except Exception as e:
+    generate_legacy_pptx_bytes = None
+    LEGACY_PPTX_AVAILABLE = False
+
 # Database setup
-DATABASE_URL = "sqlite:///./reports.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    db_file = Path(__file__).resolve().parent / "reports.db"
+    DATABASE_URL = f"sqlite:///{db_file}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -246,6 +261,56 @@ def export_report(report_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Report not found")
 
     return report.to_dict()
+ 
+@app.get("/api/reports/{report_id}/legacy-pptx")
+@app.get("/api/reports/{report_id}/export/legacy-pptx")
+def download_legacy_pptx(report_id: str, db: Session = Depends(get_db)):
+    """Exporta el reporte en formato PPTX antiguo (legacy) y lo devuelve como archivo descargable."""
+    if not LEGACY_PPTX_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de exportación PPTX legacy no disponible en el servidor")
+
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    report_dict = report.to_dict()
+    try:
+        content = generate_legacy_pptx_bytes(report_dict)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando PowerPoint legacy: {e}")
+
+    year = report_dict.get("year", 2026)
+    week = str(report_dict.get("week", 1)).zfill(2)
+    filename = f"{year}W{week}_ReporteIncidencias_Legacy.pptx"
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+@app.post("/api/reports/export/legacy-pptx")
+def export_custom_legacy_pptx(report_data: dict):
+    """Genera una presentación PPTX en formato antiguo (legacy) a partir de un JSON de reporte arbitrario."""
+    if not LEGACY_PPTX_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de exportación PPTX legacy no disponible en el servidor")
+
+    try:
+        content = generate_legacy_pptx_bytes(report_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando PowerPoint legacy: {e}")
+
+    meta = report_data.get("meta") if isinstance(report_data.get("meta"), dict) else {}
+    year = report_data.get("year") or meta.get("year", 2026)
+    week_val = report_data.get("week") if report_data.get("week") is not None else meta.get("week", "")
+    week_str = f"W{str(week_val).zfill(2)}" if week_val != "" else ""
+    filename = f"{year}{week_str}_ReporteIncidencias_Legacy.pptx"
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 # ============ Health Check ============
 
@@ -257,4 +322,5 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("BACKEND_PORT", os.environ.get("PORT", 8000)))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    reload_env = os.environ.get("RELOAD", "true").lower() in ("true", "1", "yes")
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload_env)

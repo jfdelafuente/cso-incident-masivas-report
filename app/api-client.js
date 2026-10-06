@@ -91,6 +91,33 @@ const ApiClient = {
     });
   },
 
+  getLegacyPptxUrl(reportId) {
+    return `${this.baseURL}/api/reports/${encodeURIComponent(reportId)}/legacy-pptx`;
+  },
+
+  async downloadLegacyPptx(reportId) {
+    const url = this.getLegacyPptxUrl(reportId);
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    let filename = `${reportId}_ReporteIncidencias_Legacy.pptx`;
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  },
+
   async healthCheck() {
     try {
       return await this.request('/api/health', { method: 'GET' });

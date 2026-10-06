@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Generador de reporte de incidencias — MASORANGE</title>
+<title>Generador de reporte de incidencias — Orange</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -48,7 +48,8 @@
       <button class="mo-btn" id="btnTemplate" style="grid-column:span 2; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px; border:1px dashed #B8B2A9; border-radius:7px; background:#fff; font-size:11px; font-weight:600; color:#5C5852; cursor:pointer;">↓ Descargar plantilla CSV</button>
       <button class="mo-btn" id="btnExportJSON" style="padding:8px; border:1px solid #DEDAD3; border-radius:7px; background:#fff; font-size:11.5px; font-weight:600; color:#26241F; cursor:pointer;">Guardar JSON</button>
       <button class="mo-btn" id="btnExportPDF" style="padding:8px; border:1px solid #DEDAD3; border-radius:7px; background:#fff; font-size:11.5px; font-weight:600; color:#26241F; cursor:pointer;">PDF</button>
-      <button class="mo-btn" id="btnExportPPTX" style="grid-column:span 2; padding:9px; border:none; border-radius:7px; background:#FF7900; font-size:12px; font-weight:700; color:#fff; cursor:pointer;">Descargar PowerPoint (.pptx)</button>
+      <button class="mo-btn" id="btnExportPPTX" style="padding:9px 6px; border:none; border-radius:7px; background:#FF7900; font-size:11.5px; font-weight:700; color:#fff; cursor:pointer;">Descargar PPT</button>
+      <button class="mo-btn" id="btnExportLegacyPPTX" style="padding:9px 6px; border:1px solid #DEDAD3; border-radius:7px; background:#fff; font-size:11.5px; font-weight:700; color:#26241F; cursor:pointer;" title="Descargar en formato PowerPoint antiguo (Legacy)">PPT (Legacy)</button>
       <input type="file" accept=".json,.csv" id="fileInput" style="display:none;">
       <datalist id="mo-cat-list"><option value="Indisponibilidad"></option><option value="Degradación"></option><option value="Pérdida de servicio FTTH"></option><option value="Pérdida de servicio móvil"></option><option value="Pérdida de servicio FTTH y móvil"></option></datalist>
     </div>

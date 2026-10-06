@@ -1,6 +1,6 @@
 # Informe de Auditoría de Código y Arquitectura
 
-**Proyecto:** `cso-incident-masivas-report` (Reportes de Incidencias Masivas — MASORANGE)  
+**Proyecto:** `cso-incident-masivas-report` (Reportes de Incidencias Masivas — Orange)  
 **Fecha:** 22 de Septiembre de 2026  
 **Auditor:** Antigravity Code Auditor  
 **Alcance:** Backend (`backend/`), Frontend (`app/`), Scripts de importación y diagnóstico (`scripts/`), Infraestructura y Despliegue (`nginx.conf`, `deploy.sh`, `service.sh`, `maintenance.sh`).

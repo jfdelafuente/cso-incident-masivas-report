@@ -177,7 +177,8 @@ const HomePage = {
             <select class="action-select" data-report-id="${reportIdEsc}" onchange="HomePage.handleExportAction(this.dataset.reportId, this.value); this.value='';">
               <option value="" selected disabled>Exportar</option>
               <option value="pdf">📄 PDF</option>
-              <option value="pptx">📊 PowerPoint</option>
+              <option value="pptx">📊 PPT (Nuevo)</option>
+              <option value="pptx-legacy">🏛️ PPT (Legacy)</option>
               <option value="duplicate">📋 Duplicar</option>
             </select>
             <select class="action-select danger" data-report-id="${reportIdEsc}" onchange="HomePage.deleteReport(this.dataset.reportId); this.value='';">
@@ -222,7 +223,8 @@ const HomePage = {
           <select class="action-select" data-report-id="${reportIdEsc}" onchange="HomePage.handleExportAction(this.dataset.reportId, this.value); this.value='';">
             <option value="" selected disabled>Exportar</option>
             <option value="pdf">📄 Descargar PDF</option>
-            <option value="pptx">📊 Descargar PowerPoint</option>
+            <option value="pptx">📊 Descargar PowerPoint (Nuevo)</option>
+            <option value="pptx-legacy">🏛️ Descargar PowerPoint (Legacy)</option>
             <option value="duplicate">📋 Duplicar informe</option>
           </select>
           <select class="action-select danger" data-report-id="${reportIdEsc}" onchange="HomePage.deleteReport(this.dataset.reportId); this.value='';">
@@ -330,6 +332,7 @@ const HomePage = {
   handleExportAction(reportId, action) {
     if (action === 'pdf') this.downloadPDF(reportId);
     else if (action === 'pptx') this.downloadPPTX(reportId);
+    else if (action === 'pptx-legacy') this.downloadLegacyPPTX(reportId);
     else if (action === 'duplicate') this.openDuplicateModal(reportId);
   },
 
@@ -362,6 +365,15 @@ const HomePage = {
       downloadPptx(report, report.incidents || [], `${reportId}_ReporteIncidencias.pptx`);
     } catch (error) {
       alert('Error al descargar PPT: ' + error.message);
+      console.error(error);
+    }
+  },
+
+  async downloadLegacyPPTX(reportId) {
+    try {
+      await ApiClient.downloadLegacyPptx(reportId);
+    } catch (error) {
+      alert('Error al descargar PowerPoint Legacy: ' + error.message);
       console.error(error);
     }
   },

@@ -208,7 +208,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 ### Frontend
 - [ ] Accede a http://10.132.68.85:8081/reportes-incidencias
 - [ ] Carga index.html (listado de informes) correctamente
-- [ ] Los estilos se ven bien (colores MASORANGE)
+- [ ] Los estilos se ven bien (colores Orange)
 - [ ] Las imágenes/logos cargan
 
 ### Backend API
@@ -219,7 +219,7 @@ Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Re
 ### Funcionalidad
 - [ ] **Home:** Lista reportes y permite crear nuevos
 - [ ] **Editor:** Carga un reporte y permite editar incidencias
-- [ ] **Preview:** Muestra slides con estilos MASORANGE
+- [ ] **Preview:** Muestra slides con estilos Orange
 - [ ] **Descargas:** PDF y PPT se descargan correctamente
 - [ ] **Auto-save:** Los cambios se guardan automáticamente
 - [ ] **Status:** Puede cambiar estado draft/reviewed/published

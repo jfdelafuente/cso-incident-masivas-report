@@ -54,9 +54,13 @@ def slide_group(title_text):
     dropped, but flags it since it's not one of the known conventions."""
     t = title_text.replace("Incidencias RED", "").strip(" ()")
     tl = t.lower()
+    if "it mm" in tl:
+        return "IT MM", True
+    if "it" in tl:
+        return "RED (Incidencias IT)", True
     if "5000" in tl or "5.000" in tl:
         return "RED >5.000 clientes", True
-    if "relevantes" in tl or "climatolog" in tl or "escalados" in tl:
+    if "relevantes" in tl or "climatolog" in tl or "escalados" in tl or "otras" in tl:
         return "Otras RED", True
     if "b2b" in tl:
         return "RED B2B", False  # not an existing convention -- flagged
@@ -168,7 +172,20 @@ def parse_incident_group(group_shape, group_label):
     body = [(x, y, t) for x, y, t in items if y > 3.8 and t not in LABEL_WORDS]
     impacto = nearest(body, 0.5, tolerance=1.0)
     causa = nearest(body, 4.0, tolerance=1.0)
-    solucion = nearest(body, 8.1, tolerance=1.0)
+    solucion_raw = nearest(body, 8.1, tolerance=1.0)
+    solucion = solucion_raw or ""
+    action_points = ""
+    if solucion:
+        ap_match = re.search(r"(?i)\n?\s*(?:action\s*points?|puntos?\s+de\s+acci[oó]n)\s*:\s*\n?(.*)", solucion, re.DOTALL)
+        if ap_match:
+            action_points_raw = ap_match.group(1).strip()
+            solucion = solucion[:ap_match.start()].strip()
+            ap_lines = []
+            for l in action_points_raw.split("\n"):
+                l_clean = re.sub(r"^[•\-\*]\s*", "", l).strip()
+                if l_clean:
+                    ap_lines.append(l_clean)
+            action_points = "\n".join(ap_lines)
 
     metrics_raw = impacto or ""
     cFTTH, cMobile = extract_numbers(metrics_raw)
@@ -190,8 +207,8 @@ def parse_incident_group(group_shape, group_label):
         "impact": "",
         "metrics": metrics_to_pipe_format(metrics_raw),
         "cause": causa or "",
-        "solution": solucion or "",
-        "actionPoints": "",
+        "solution": solucion,
+        "actionPoints": action_points,
         "cFTTH": cFTTH,
         "cMobile": cMobile,
         "brands": "",
@@ -226,13 +243,17 @@ def parse_pptx(path):
     incidents = []
     warnings = []
     for slide_idx, slide in enumerate(prs.slides, 1):
+        incident_grps = find_incident_groups(slide.shapes)
+        if not incident_grps:
+            continue
+
         title_shape = next((s for s in slide.shapes if s.has_text_frame and s.text_frame.text.strip()), None)
         title_text = title_shape.text_frame.text.strip() if title_shape else ""
         group_label, known = slide_group(title_text)
         if not known:
             warnings.append(f"Slide {slide_idx}: grupo '{group_label}' no es una convención existente en la app, revisar.")
 
-        for grp in find_incident_groups(slide.shapes):
+        for grp in incident_grps:
             inc = parse_incident_group(grp, group_label)
             flags = inc.pop("_flags")
             if not inc["title"]:
@@ -322,8 +343,12 @@ def main():
         for w in warnings:
             print(f"  - {w}")
         print()
-    print("Campos que ESTE PPT no registraba y quedan con su valor por defecto en TODAS las incidencias:")
-    print("  - severity (default SL2), brands (vacío), ministry/platform/externalOrigin (False), actionPoints (vacío), category/system (vacío, todo va en 'title')")
+    missing_fields = ["severity (default SL2)", "brands (vacío)", "ministry/platform/externalOrigin (False)"]
+    if not any(i.get("actionPoints") for i in incidents):
+        missing_fields.append("actionPoints (vacío)")
+    missing_fields.append("category/system (vacío, todo va en 'title')")
+    print("Campos que este PPT no registraba o quedaron con valor por defecto:")
+    print("  - " + ", ".join(missing_fields))
     print()
 
     if args.output:
