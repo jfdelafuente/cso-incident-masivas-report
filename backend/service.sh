@@ -73,10 +73,17 @@ start() {
         return 0
     fi
 
-    if command -v lsof > /dev/null 2>&1 && lsof -i ":$PORT" -sTCP:LISTEN > /dev/null 2>&1; then
-        log_error "El puerto $PORT ya está en uso por otro proceso. Revísalo antes de continuar:"
-        lsof -i ":$PORT" -sTCP:LISTEN
-        return 1
+    if command -v lsof > /dev/null 2>&1; then
+        if lsof -i ":$PORT" -sTCP:LISTEN > /dev/null 2>&1; then
+            log_error "El puerto $PORT ya está en uso por otro proceso. Revísalo antes de continuar:"
+            lsof -i ":$PORT" -sTCP:LISTEN
+            return 1
+        fi
+    elif command -v ss > /dev/null 2>&1; then
+        if ss -ltn "sport = :$PORT" 2>/dev/null | grep -q ":$PORT"; then
+            log_error "El puerto $PORT ya está en uso por otro proceso (detectado con ss)."
+            return 1
+        fi
     fi
 
     rm -f "$PID_FILE"

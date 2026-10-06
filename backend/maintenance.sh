@@ -181,8 +181,9 @@ rotate_logs() {
         return 0
     fi
 
+    local max_rot=$((LOG_ROTATE_RETENTION - 1))
     local i
-    for i in 7 6 5 4 3 2 1; do
+    for ((i = max_rot; i >= 1; i--)); do
         [ -f "$LOG_FILE.$i" ] && mv "$LOG_FILE.$i" "$LOG_FILE.$((i + 1))"
     done
     cp "$LOG_FILE" "$LOG_FILE.1"
@@ -209,11 +210,13 @@ healthcheck() {
         fails=$((fails + 1))
     fi
 
-    log_info "=== Disco (/infocodes) ==="
+    local check_mount="/infocodes"
+    [ ! -d "$check_mount" ] && check_mount="$SCRIPT_DIR"
+    log_info "=== Disco ($check_mount) ==="
     local pct
-    pct="$(df -P /infocodes 2>/dev/null | awk 'NR==2 { gsub("%","",$(NF-1)); print $(NF-1) }')"
+    pct="$(df -P "$check_mount" 2>/dev/null | awk 'NR==2 { gsub("%","",$(NF-1)); print $(NF-1) }')"
     if [ -z "$pct" ]; then
-        log_warn "No se pudo determinar el uso de disco de /infocodes"
+        log_warn "No se pudo determinar el uso de disco de $check_mount"
         warns=$((warns + 1))
     elif [ "$pct" -ge "$DISK_FAIL_PCT" ]; then
         log_error "Disco al ${pct}% (umbral de fallo ${DISK_FAIL_PCT}%)"

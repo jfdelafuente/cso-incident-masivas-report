@@ -1,10 +1,10 @@
-# Scripts de importación desde el PPT manual antiguo
+# Scripts de conversión e interoperabilidad PPT antiguo (Legacy)
 
-Herramientas standalone (sin interfaz web) para convertir el PPT manual de
-incidencias RED (el formato anterior a esta app) en datos que esta app puede
-consumir. No forman parte del backend ni del frontend — son scripts de
-un solo uso, pensados para ejecutarse a mano cuando llega un reporte semanal
-en el formato antiguo.
+Herramientas standalone (sin interfaz web) para interoperar con el formato
+antiguo de PowerPoint de incidencias RED (plantilla legacy con tarjetas
+agrupadas e ID/Fecha/Duración/Impacto/Causa/Solución). Permiten tanto
+importar un PPT antiguo a JSON/API como exportar desde un JSON de la app
+al formato PPT clásico.
 
 No hay entorno virtual dedicado para ellos: usan el Python del sistema con
 `python-pptx` instalado globalmente (ver «Instalación» abajo).
@@ -106,6 +106,65 @@ El JSON que produce `-o` tiene el mismo formato que `POST /api/reports`
 (payload `ReportCreate`). Para meterlo en el dashboard sin usar
 `--post-url`: abre `index.html`, usa el botón **"Importar JSON"** y
 selecciona el fichero generado.
+
+## `export_legacy_pptx.py` — generar PPT en formato antiguo desde JSON
+
+Toma un JSON de reporte generado por la aplicación (exportado desde el editor
+o devuelto por `/api/reports/{id}`) y construye una presentación de PowerPoint
+con la estructura, portada y tarjetas idénticas a las del formato antiguo
+(como el ejemplo `2026W39_ReporteIncidencias.pptx`).
+
+### Uso básico
+
+```bash
+# Genera automáticamente {year}W{week}_ReporteIncidencias.pptx en el mismo directorio:
+python scripts/export_legacy_pptx.py 2026W39_ReporteIncidencias.json
+
+# O especificando la ruta de salida:
+python scripts/export_legacy_pptx.py reporte.json -o salida.pptx
+```
+
+### Opciones disponibles
+
+```bash
+python scripts/export_legacy_pptx.py reporte.json \
+  -o salida.pptx \
+  --template scripts/legacy_template.pptx \
+  --cards-per-slide 2 \
+  --quiet
+```
+
+- `-o`, `--output`: Ruta del fichero `.pptx` generado. Si se omite, se deduce del año y semana del JSON.
+- `-t`, `--template`: Ruta a una plantilla PPTX personalizada. Por defecto busca automáticamente `scripts/legacy_template.pptx` o `2026W39_ReporteIncidencias.pptx`.
+- `-l`, `--logo`: Ruta al archivo del logo corporativo (SVG o PNG). Por defecto utiliza automáticamente `app/assets/orange-logo.png`.
+- `--cards-per-slide`: Número máximo de tarjetas por diapositiva (por defecto `2`). Si un grupo tiene exactamente 3 incidencias, el script las organiza automáticamente en una sola diapositiva con el diseño de 3 slots idéntico al PPT de referencia.
+- `-q`, `--quiet`: Suprime mensajes informativos por pantalla.
+
+### Comportamiento y mapeo de campos
+
+- **Logo corporativo**: Integra automáticamente el logo oficial de Orange en la portada (Slide 0) y en el patrón de diapositivas (Slide Master, visible en la esquina superior derecha de todas las diapositivas de contenido).
+- **Portada**: Actualiza los placeholders oficiales de título (`REPORTE INCIDENCIAS IT + RED`), subtítulo (`2026 - Week 39` o `2026 - Week 40`) y departamento (`Customer & Service Operations`).
+- **Agrupación en diapositivas**: Agrupa las incidencias por su campo `group` y les asigna el encabezado correspondiente:
+  - `RED (Incidencias IT)` / `IT OSP/JZZ` $\rightarrow$ `Incidencias IT`
+  - `IT MM` $\rightarrow$ `Incidencias IT MM`
+  - `RED >5.000 clientes` $\rightarrow$ `Incidencias RED  (> 5000 CLIENTES)`
+  - `RED B2B` $\rightarrow$ `Incidencias RED  (Impacto en B2B)`
+  - `Otras RED` $\rightarrow$ `Incidencias RED  (Relevantes por duración/Climatología/Escalados RRII)`
+  - `RED (Otras)` $\rightarrow$ `Otras Incidencias RED`
+- **Tarjetas y tickets**: Formatea cada tarjeta con su título naranja (`#FF7800`), tickets múltiples en saltos de línea para compatibilidad total con `import_pptx.py`, fecha, duración y columnas de Impacto, Causa y Solución con separadores horizontales.
+- **Action Points**: Si la incidencia define puntos de acción (`actionPoints`), se incorporan automáticamente bajo el texto de la columna **Solución** con el encabezado destacado `Action Points:` en verde corporativo y viñetas para cada ticket/acción (`• PROB-XXXXX | Tipo | Descripción`). Ambos scripts (`export_legacy_pptx.py` e `import_pptx.py`) los procesan de forma bidireccional y sin pérdidas en el round-trip.
+
+### Exportación desde la API y el Dashboard
+
+La funcionalidad de `export_legacy_pptx.py` está integrada directamente en el backend FastAPI y en la interfaz de usuario:
+- **Dashboard principal (`index.html`)**: Tanto en las tarjetas de la semana actual como en la tabla de semanas anteriores, el desplegable *Exportar* incluye la opción **«🏛️ Descargar PowerPoint (Legacy)»** / **«🏛️ PPT (Legacy)»**.
+- **Editor (`editor.html`)**: Botón dedicado **«PPT (Legacy)»** en la barra de herramientas del panel lateral.
+- **Endpoints FastAPI (`backend/main.py`)**:
+  - `GET /api/reports/{report_id}/legacy-pptx`: Genera en streaming el PPTX legacy del informe guardado en base de datos.
+  - `POST /api/reports/export/legacy-pptx`: Recibe un payload JSON arbitrario y devuelve directamente el binario PPTX descargable.
+- **Módulo Python reutilizable**:
+  - `generate_legacy_pptx(report_data_or_path, ...)`: Retorna la instancia `Presentation`.
+  - `generate_legacy_pptx_bytes(report_data_or_path, ...)`: Retorna `bytes` en memoria listos para streaming HTTP o almacenamiento.
 
 ## Si el PPT tiene una plantilla distinta
 

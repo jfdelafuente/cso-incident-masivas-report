@@ -273,11 +273,15 @@ function buildPptxDeck(P, meta, incidents) {
 
   let s = P.addSlide(); s.background = { color: BLACK };
   try {
-    s.addImage({ path: 'assets/orange-logo.svg', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
+    s.addImage({ path: 'assets/orange-logo.png', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
   } catch (e) {
     try {
-      s.addImage({ path: 'assets/brands/orange.png', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
-    } catch (e2) {}
+      s.addImage({ path: 'assets/orange-logo.svg', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
+    } catch (e2) {
+      try {
+        s.addImage({ path: 'assets/brands/orange.png', x: 0.5, y: 0.45, w: 0.65, h: 0.65 });
+      } catch (e3) {}
+    }
   }
   s.addText(m.dept, { x: 8.3, y: 0.55, w: 4.5, h: 0.4, align: 'right', color: 'B8B2A9', fontSize: 13, fontFace: 'Arial' });
   s.addText((m.year + ' · SEMANA ' + m.week).toUpperCase(), { x: 0.5, y: 3.7, w: 10, h: 0.4, color: ORANGE, fontSize: 16, bold: true, charSpacing: 3, fontFace: 'Arial' });
@@ -562,7 +566,7 @@ function buildPptxDeck(P, meta, incidents) {
     const first = group[0];
     const sv = sev(first.severity);
     const n = group.length;
-    const includeActionPoints = n === 2;
+    const includeActionPoints = n <= 3;
     const sl = P.addSlide(); sl.background = { color: WHITE };
     sl.addShape(P.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 2.1, fill: { color: BLACK } });
     sl.addText(first.group.toUpperCase(), { x: 0.55, y: 0.4, w: 7, h: 0.35, color: ORANGE, fontSize: 14, bold: true, charSpacing: 2, fontFace: 'Arial' });
@@ -836,7 +840,7 @@ function buildPdfHtml(report, incidents) {
 
         const first = group[0];
         const sv = sev(first.severity);
-        const includeActionPoints = group.length === 2;
+        const includeActionPoints = group.length <= 3;
         const panelsHtml = group.map(it => {
           const flags = [
             it.ministry ? '● Reportada al Ministerio' : '',
@@ -859,11 +863,9 @@ function buildPdfHtml(report, incidents) {
               <p>${esc(it.cause || '—')}</p>
               <h4>SOLUCIÓN</h4>
               <p>${esc(it.solution || '—')}</p>
-              ${includeActionPoints ? `
+              ${(includeActionPoints && aps.length) ? `
               <h4>ACTION POINTS</h4>
-              ${aps.length
-                ? aps.map(ap => `<p><strong>${esc([ap.ap, ap.tipo].filter(Boolean).join(' · '))}:</strong> ${esc(ap.desc)}</p>`).join('')
-                : '<p>—</p>'}` : ''}
+              ${aps.map(ap => `<p><strong>${esc([ap.ap, ap.tipo].filter(Boolean).join(' · '))}:</strong> ${esc(ap.desc)}</p>`).join('')}` : ''}
               <div class="brands"><strong>Marcas:</strong> ${esc(it.brands || '—')}</div>
             </div>
           `;

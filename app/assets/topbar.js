@@ -1,5 +1,5 @@
 /* ============================================================
-   MASORANGE Top Bar — componente de navegación corporativo
+   Orange Top Bar — componente de navegación corporativo
    ============================================================
    Fuente única de la navegación cruzada entre los dashboards del portal.
    Cada página incluye un <div id="mo-topbar-root" data-active="...">

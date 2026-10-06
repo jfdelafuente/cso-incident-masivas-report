@@ -87,14 +87,16 @@ log_warn "nginx.conf es COMPARTIDO con otras apps de este servidor: /static, /da
 NGINX_BIN="/infocodes/nginx/sbin/nginx"
 NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
 NGINX_BACKUP="$NGINX_CONF.backup.$(date +%Y%m%d_%H%M%S)"
-cp "$NGINX_CONF" "$NGINX_BACKUP"
+if [ -f "$NGINX_CONF" ]; then
+    cp "$NGINX_CONF" "$NGINX_BACKUP"
+fi
 cp "$DEPLOY_PATH/nginx.conf" "$NGINX_CONF"
 if "$NGINX_BIN" -c "$NGINX_CONF" -t; then
     "$NGINX_BIN" -c "$NGINX_CONF" -s reload
     log_success "Nginx configurado y recargado"
 else
     log_error "Configuración de Nginx inválida, restaurando backup"
-    cp "$NGINX_BACKUP" "$NGINX_CONF"
+    [ -f "$NGINX_BACKUP" ] && cp "$NGINX_BACKUP" "$NGINX_CONF"
     exit 1
 fi
 

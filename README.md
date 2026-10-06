@@ -1,6 +1,6 @@
 # Automatización de reportes semanales — Reportes de Incidencias
 
-Herramienta interna de MASORANGE que convierte el listado semanal de incidencias IT + RED en un dossier de slides con estilo corporativo (vista web, PDF y PowerPoint editable), sustituyendo el PowerPoint que antes se montaba a mano.
+Herramienta interna de Orange que convierte el listado semanal de incidencias IT + RED en un dossier de slides con estilo corporativo (vista web, PDF y PowerPoint editable), sustituyendo el PowerPoint que antes se montaba a mano.
 
 Frontend en HTML/CSS/JS puro (sin build) + backend FastAPI con SQLite para persistencia.
 
