@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import create_engine, desc
@@ -73,6 +73,8 @@ RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
 # que este backend y el servidor de desarrollo de ese repo (serve_app.py)
 # compartan exactamente el mismo contrato de éxito/error.
 sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
+sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT))
+sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "src"))
 try:
     from upload_csv import run_upload  # noqa: E402
     from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
@@ -82,6 +84,28 @@ except ImportError:
     generate_report = None
     generate_all_reports = None
     DASHBOARD_INTEGRATION_AVAILABLE = False
+
+try:
+    from converters.src.report_generator.executive_paths import (  # noqa: E402
+        get_executive_report_path,
+        sanitize_incident_ref,
+        cleanup_old_executive_reports,
+    )
+    from converters.src.report_generator.executive_models import (  # noqa: E402
+        ExecutiveIncidentData,
+        extract_fields_from_jira_description,
+    )
+    from converters.src.report_generator.executive_report_builder import ExecutiveReportBuilder  # noqa: E402
+    from converters.src.report_generator.confluence_parser import ConfluenceParser  # noqa: E402
+    EXECUTIVE_REPORT_AVAILABLE = True
+except ImportError as e:
+    cleanup_old_executive_reports = None
+    print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
+    EXECUTIVE_REPORT_AVAILABLE = False
+
+print(f"  [Integración] Release Dashboard Root: {RELEASE_DASHBOARD_ROOT} (existe: {RELEASE_DASHBOARD_ROOT.exists()})")
+print(f"  [Integración] Subida CSV & Postmortems: {'OK' if DASHBOARD_INTEGRATION_AVAILABLE else 'NO DISPONIBLE'}")
+print(f"  [Integración] Informes Ejecutivos PPT: {'OK' if EXECUTIVE_REPORT_AVAILABLE else 'NO DISPONIBLE'}")
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB límite
 
@@ -145,6 +169,167 @@ def generate_postmortem_reports_batch():
     if not DASHBOARD_INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="Módulo de generación de informes postmortem no disponible")
     return generate_all_reports(project_root=RELEASE_DASHBOARD_ROOT)
+
+# ============ Executive Incident Report (PPTX) ============
+
+EXECUTIVE_REPORT_PREFIX = "/api/reports/executive-incident"
+
+@app.post("/api/reports/executive-incident")
+async def generate_executive_report(request: Request):
+    """Genera el informe ejecutivo en PowerPoint para una incidencia postmortem."""
+    if not EXECUTIVE_REPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+
+    try:
+        payload = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"JSON inválido: {e}")
+
+    incident_ref = payload.get("incidentRef") or payload.get("incident_ref") or payload.get("id")
+    if not incident_ref:
+        raise HTTPException(status_code=400, detail="Falta el código de incidencia (incidentRef)")
+
+    data_dict = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if "incidentRef" not in data_dict:
+        data_dict["incidentRef"] = incident_ref
+
+    raw_content = payload.get("rawContent") or data_dict.get("rawContent") or ""
+    confluence_url = payload.get("confluenceUrl") or data_dict.get("sourceUrl") or ""
+
+    if raw_content:
+        try:
+            parser = ConfluenceParser()
+            parsed_data = parser.parse(raw_content, fallback_ref=incident_ref, source_url=confluence_url)
+            base_dict = parsed_data.to_dict()
+            for k, v in data_dict.items():
+                if v and k != "rawContent":
+                    base_dict[k] = v
+            data_dict = base_dict
+        except Exception as pe:
+            print(f"  Aviso al parsear contenido Confluence: {pe}")
+    elif confluence_url and not data_dict.get("impactText"):
+        try:
+            import urllib.request
+            req = urllib.request.Request(confluence_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                html_content = resp.read().decode("utf-8", errors="ignore")
+                parser = ConfluenceParser()
+                parsed_data = parser.parse(html_content, fallback_ref=incident_ref, source_url=confluence_url)
+                base_dict = parsed_data.to_dict()
+                for k, v in data_dict.items():
+                    if v:
+                        base_dict[k] = v
+                data_dict = base_dict
+        except Exception as ce:
+            print(f"  Nota: No se pudo obtener Confluence automáticamente ({ce}). Se usarán datos base.")
+
+    # Fallback a datos de Jira si no se obtuvieron o faltan secciones en data_dict
+    jira_desc = data_dict.get("description") or payload.get("description") or ""
+    if jira_desc and (not data_dict.get("impactText") or not data_dict.get("causeText") or not data_dict.get("solutionText")):
+        extracted = extract_fields_from_jira_description(jira_desc)
+        for ek, ev in extracted.items():
+            if not data_dict.get(ek):
+                data_dict[ek] = ev
+
+    force = payload.get("force", False)
+    target_path = get_executive_report_path(incident_ref)
+
+    if target_path.is_file() and not force:
+        return {
+            "success": True,
+            "incidentRef": sanitize_incident_ref(incident_ref),
+            "filename": target_path.name,
+            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{sanitize_incident_ref(incident_ref)}",
+            "sizeBytes": target_path.stat().st_size,
+            "cached": True,
+        }
+
+    try:
+        incident_data = ExecutiveIncidentData.from_dict(data_dict)
+        builder = ExecutiveReportBuilder()
+        metadata = builder.generate(incident_data, target_path)
+
+        # Higiene automática: eliminar informes en disco con más de 14 días
+        if cleanup_old_executive_reports:
+            try:
+                cleaned = cleanup_old_executive_reports(max_age_days=14, keep_min=5)
+                if cleaned:
+                    print(f"  [Cleanup] Eliminados {len(cleaned)} informes ejecutivos antiguos: {', '.join(cleaned)}")
+            except Exception as clean_err:
+                print(f"  [Cleanup] Aviso no bloqueante: {clean_err}")
+
+        return {
+            "success": True,
+            "incidentRef": metadata.incident_ref,
+            "filename": metadata.filename,
+            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{metadata.incident_ref}",
+            "generatedAt": metadata.generated_at,
+            "sizeBytes": metadata.size_bytes,
+            "slideCount": metadata.slide_count,
+        }
+    except Exception as e:
+        print(f"  Error generando informe ejecutivo: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generando informe ejecutivo PowerPoint: {e}"
+        )
+
+@app.get("/api/reports/executive-incident/{incident_ref}/status")
+def get_executive_report_status(incident_ref: str):
+    """Comprueba si el informe ejecutivo para una incidencia ya está generado."""
+    if not EXECUTIVE_REPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+
+    clean_ref = sanitize_incident_ref(incident_ref)
+    report_path = get_executive_report_path(clean_ref)
+    if report_path.is_file():
+        return {
+            "exists": True,
+            "incidentRef": clean_ref,
+            "filename": report_path.name,
+            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{clean_ref}",
+            "sizeBytes": report_path.stat().st_size,
+        }
+    return {"exists": False, "incidentRef": clean_ref}
+
+@app.get("/api/reports/executive-incident/{incident_ref}")
+def download_executive_report(incident_ref: str):
+    """Descarga el informe ejecutivo PowerPoint."""
+    if not EXECUTIVE_REPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+
+    clean_ref = sanitize_incident_ref(incident_ref)
+    report_path = get_executive_report_path(clean_ref)
+    if not report_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No existe informe generado para la incidencia {clean_ref}. Debe solicitarlo primero."
+        )
+
+    return Response(
+        content=report_path.read_bytes(),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={
+            "Content-Disposition": f'attachment; filename="{report_path.name}"',
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+@app.post("/api/reports/executive-incident/cleanup")
+def cleanup_executive_reports(max_age_days: int = Query(14, ge=1), keep_min: int = Query(5, ge=0)):
+    """Limpia informes ejecutivos PowerPoint antiguos de disco conservando los más recientes."""
+    if not EXECUTIVE_REPORT_AVAILABLE or not cleanup_old_executive_reports:
+        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+
+    try:
+        cleaned = cleanup_old_executive_reports(max_age_days=max_age_days, keep_min=keep_min)
+        return {
+            "success": True,
+            "deletedCount": len(cleaned),
+            "deletedFiles": cleaned,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error durante la limpieza: {e}")
 
 # ============ CRUD Operations ============
 
@@ -323,4 +508,12 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("BACKEND_PORT", os.environ.get("PORT", 8000)))
     reload_env = os.environ.get("RELOAD", "true").lower() in ("true", "1", "yes")
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload_env)
+    backend_dir = str(Path(__file__).resolve().parent)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=reload_env,
+        reload_dirs=[backend_dir] if reload_env else None,
+    )
+
