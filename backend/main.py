@@ -61,6 +61,33 @@ def get_db():
     finally:
         db.close()
 
+# ============ Health Probes ============
+
+@app.get("/healthz")
+def healthz():
+    """Liveness probe: verifica que el servicio está activo y respondiendo."""
+    return {
+        "status": "ok",
+        "service": "cso-incident-reporting-backend",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+@app.get("/readyz")
+def readyz(db: Session = Depends(get_db)):
+    """Readiness probe: verifica dependencias (base de datos y motor PPTX)."""
+    db_ok = True
+    try:
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+    except Exception:
+        db_ok = False
+
+    return {
+        "status": "ready" if db_ok else "degraded",
+        "database": "ok" if db_ok else "error",
+        "executiveReportEngine": "available" if EXECUTIVE_REPORT_AVAILABLE else "unavailable",
+    }
+
 # ============ Release Dashboard CSV Upload ============
 # Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/)
 RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
@@ -86,22 +113,36 @@ except ImportError:
     DASHBOARD_INTEGRATION_AVAILABLE = False
 
 try:
-    from converters.src.report_generator.executive_paths import (  # noqa: E402
+    # 1. Importar desde el módulo local autónomo del backend
+    from report_generator import (
         get_executive_report_path,
         sanitize_incident_ref,
         cleanup_old_executive_reports,
-    )
-    from converters.src.report_generator.executive_models import (  # noqa: E402
         ExecutiveIncidentData,
         extract_fields_from_jira_description,
+        ExecutiveReportBuilder,
+        ConfluenceParser,
     )
-    from converters.src.report_generator.executive_report_builder import ExecutiveReportBuilder  # noqa: E402
-    from converters.src.report_generator.confluence_parser import ConfluenceParser  # noqa: E402
     EXECUTIVE_REPORT_AVAILABLE = True
-except ImportError as e:
-    cleanup_old_executive_reports = None
-    print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
-    EXECUTIVE_REPORT_AVAILABLE = False
+except ImportError:
+    try:
+        # 2. Fallback a converters de release-dashboard-application si aplica
+        from converters.src.report_generator.executive_paths import (  # noqa: E402
+            get_executive_report_path,
+            sanitize_incident_ref,
+            cleanup_old_executive_reports,
+        )
+        from converters.src.report_generator.executive_models import (  # noqa: E402
+            ExecutiveIncidentData,
+            extract_fields_from_jira_description,
+        )
+        from converters.src.report_generator.executive_report_builder import ExecutiveReportBuilder  # noqa: E402
+        from converters.src.report_generator.confluence_parser import ConfluenceParser  # noqa: E402
+        EXECUTIVE_REPORT_AVAILABLE = True
+    except ImportError as e:
+        cleanup_old_executive_reports = None
+        print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
+        EXECUTIVE_REPORT_AVAILABLE = False
 
 print(f"  [Integración] Release Dashboard Root: {RELEASE_DASHBOARD_ROOT} (existe: {RELEASE_DASHBOARD_ROOT.exists()})")
 print(f"  [Integración] Subida CSV & Postmortems: {'OK' if DASHBOARD_INTEGRATION_AVAILABLE else 'NO DISPONIBLE'}")
@@ -174,6 +215,7 @@ def generate_postmortem_reports_batch():
 
 EXECUTIVE_REPORT_PREFIX = "/api/reports/executive-incident"
 
+@app.post("/api/v1/reports/executive-incident")
 @app.post("/api/reports/executive-incident")
 async def generate_executive_report(request: Request):
     """Genera el informe ejecutivo en PowerPoint para una incidencia postmortem."""
@@ -274,6 +316,7 @@ async def generate_executive_report(request: Request):
             detail=f"Error generando informe ejecutivo PowerPoint: {e}"
         )
 
+@app.get("/api/v1/reports/executive-incident/{incident_ref}/status")
 @app.get("/api/reports/executive-incident/{incident_ref}/status")
 def get_executive_report_status(incident_ref: str):
     """Comprueba si el informe ejecutivo para una incidencia ya está generado."""
@@ -292,6 +335,7 @@ def get_executive_report_status(incident_ref: str):
         }
     return {"exists": False, "incidentRef": clean_ref}
 
+@app.get("/api/v1/reports/executive-incident/{incident_ref}")
 @app.get("/api/reports/executive-incident/{incident_ref}")
 def download_executive_report(incident_ref: str):
     """Descarga el informe ejecutivo PowerPoint."""
@@ -315,6 +359,7 @@ def download_executive_report(incident_ref: str):
         },
     )
 
+@app.post("/api/v1/reports/executive-incident/cleanup")
 @app.post("/api/reports/executive-incident/cleanup")
 def cleanup_executive_reports(max_age_days: int = Query(14, ge=1), keep_min: int = Query(5, ge=0)):
     """Limpia informes ejecutivos PowerPoint antiguos de disco conservando los más recientes."""
