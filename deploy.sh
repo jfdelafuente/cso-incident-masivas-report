@@ -72,8 +72,22 @@ source venv/bin/activate
 
 # Instalar dependencias
 log_info "Instalando dependencias..."
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
-log_success "Dependencias instaladas"
+PROXY_URL="$(git config --get http.proxy 2>/dev/null || true)"
+if [ -z "$PROXY_URL" ]; then
+    PROXY_URL="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}"
+fi
+PROXY_ARGS=()
+if [ -n "$PROXY_URL" ]; then
+    PROXY_ARGS=(--proxy "$PROXY_URL")
+fi
+
+(
+    unset NO_PROXY no_proxy
+    pip install "${PROXY_ARGS[@]}" --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
+) || {
+    log_warn "No se pudieron actualizar dependencias vía pip. Continuando con las instaladas..."
+}
+log_success "Dependencias verificadas"
 
 # Motor de gráficas del informe PPT: Matplotlib (backend Agg, puro Python)
 # es el motor principal (no requiere Chrome ni librerías X11).

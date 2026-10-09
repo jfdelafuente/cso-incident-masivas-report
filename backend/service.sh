@@ -108,8 +108,38 @@ ensure_venv() {
         log_info "Creando entorno virtual..."
         python3 -m venv venv
     fi
+
+    # Si matplotlib y dependencias ya están instaladas, evitar invocar pip innecesariamente
+    if "$PYTHON_BIN" -c "import matplotlib, fastapi, uvicorn" >/dev/null 2>&1; then
+        return 0
+    fi
+
     log_info "Instalando/actualizando dependencias..."
-    "$SCRIPT_DIR/venv/bin/pip" install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
+
+    # Detectar proxy corporativo (git config o variables de entorno del servidor)
+    local proxy_url
+    proxy_url="$(git config --get http.proxy 2>/dev/null || true)"
+    if [ -z "$proxy_url" ]; then
+        proxy_url="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}"
+    fi
+
+    local proxy_opts=()
+    if [ -n "$proxy_url" ]; then
+        proxy_opts=(--proxy "$proxy_url")
+    fi
+
+    # Ejecutar pip aislando NO_PROXY para evitar que impida alcanzar PyPI a través del proxy
+    (
+        unset NO_PROXY no_proxy
+        "$SCRIPT_DIR/venv/bin/pip" install \
+            "${proxy_opts[@]}" \
+            --trusted-host pypi.org \
+            --trusted-host pypi.python.org \
+            --trusted-host files.pythonhosted.org \
+            -q -r requirements.txt
+    ) || {
+        log_warn "No se pudieron actualizar dependencias vía pip. Continuando con las instaladas..."
+    }
 }
 
 stop() {
