@@ -75,22 +75,12 @@ log_info "Instalando dependencias..."
 pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r requirements.txt
 log_success "Dependencias instaladas"
 
-# kaleido (informe PPT de Postmortem por Release) necesita Chrome instalado
-# desde la versión 1.x en adelante. Se instala en el propio venv, sin sudo;
-# si ya está instalado, plotly_get_chrome no vuelve a descargarlo.
-log_info "Comprobando Chrome para kaleido..."
-plotly_get_chrome -y >/dev/null 2>&1 && log_success "Chrome disponible para kaleido" || log_warn "No se pudo instalar Chrome para kaleido — el informe PPT de Postmortem fallará hasta ejecutar 'plotly_get_chrome -y' manualmente"
+# Motor de gráficas del informe PPT: Matplotlib (backend Agg, puro Python)
+# es el motor principal (no requiere Chrome ni librerías X11).
+# Se comprueba Chrome para Kaleido solo como fallback opcional.
+log_info "Comprobando motor de gráficas..."
+plotly_get_chrome -y >/dev/null 2>&1 && log_info "Chrome disponible para kaleido (fallback opcional)" || true
 
-# En servidores mínimos, el Chrome descargado puede arrancar y cerrarse al
-# instante por faltar librerías del sistema (requiere sudo, no lo instala
-# este script — ver "Requisitos previos" en DEPLOYMENT.md).
-CHROME_BIN="$HOME/.local/share/choreographer/deps/chrome-linux64/chrome"
-if [ -f "$CHROME_BIN" ]; then
-    MISSING_LIBS=$(ldd "$CHROME_BIN" 2>/dev/null | grep "not found")
-    if [ -n "$MISSING_LIBS" ]; then
-        log_warn "Faltan librerías del sistema para que Chrome arranque (el informe PPT de Postmortem fallará): $MISSING_LIBS — instálalas con sudo, ver DEPLOYMENT.md"
-    fi
-fi
 
 # 3. Crear base de datos
 log_info "Paso 3: Inicializar base de datos"
