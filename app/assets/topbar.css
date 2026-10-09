@@ -1,35 +1,47 @@
 /* ============================================================
-   Release Dashboard — barra superior Orange
-   ============================================================
-   Compartida por TODOS los dashboards (clásicos + release-kpis).
-   Extraído de shared.css para que un dashboard que no
-   necesita el resto del framework (upload, kpi-card, tabla, badges)
-   pueda usar solo la topbar sin cargar CSS inerte.
+   MASORANGE — Barra Superior Unificada (Portal Shell)
    ============================================================ */
-
 .mo-topbar {
     position: sticky;
     top: 0;
-    z-index: 60;
-    background: #000;
-    color: #fff;
+    z-index: 1000;
+    background: #000000;
+    color: #ffffff;
     display: flex;
     align-items: center;
-    gap: 22px;
-    padding: 0 26px;
-    height: 66px;
+    gap: 20px;
+    padding: 0 24px;
+    height: 64px;
     border-bottom: 1px solid #26241F;
+    box-sizing: border-box;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.mo-topbar::-webkit-scrollbar {
+    display: none;
+}
+
+.mo-topbar-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    flex-shrink: 0;
 }
 
 .mo-topbar img {
-    height: 30px;
+    height: 28px;
     width: auto;
+    display: block;
 }
 
 .mo-topbar-sep {
     width: 1px;
     height: 24px;
     background: #33302B;
+    flex-shrink: 0;
 }
 
 .mo-topbar-dept {
@@ -38,12 +50,15 @@
     letter-spacing: .01em;
     color: #9E988E;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .mo-topbar-nav {
     display: flex;
-    gap: 2px;
-    margin-left: 14px;
+    gap: 4px;
+    margin-left: 12px;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .mo-topbar-nav a {
@@ -54,14 +69,35 @@
     color: #9E988E;
     padding: 8px 14px;
     border-bottom: 2px solid transparent;
-    transition: color .2s ease;
+    transition: color .18s ease, border-color .18s ease;
+    white-space: nowrap;
 }
 
 .mo-topbar-nav a:hover {
-    color: #fff;
+    color: #ffffff;
 }
 
 .mo-topbar-nav a.active {
-    color: #fff;
+    color: #FF7900;
     border-bottom-color: #FF7900;
+}
+
+@media (max-width: 900px) {
+    .mo-topbar {
+        padding: 0 16px;
+        gap: 14px;
+    }
+    .mo-topbar-dept {
+        display: none;
+    }
+    .mo-topbar-sep {
+        display: none;
+    }
+    .mo-topbar-nav {
+        margin-left: 0;
+    }
+    .mo-topbar-nav a {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
 }
