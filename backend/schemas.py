@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -121,24 +121,80 @@ class ExecutiveReportResponseSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     success: bool = Field(..., description="Indica si la generación o consulta fue exitosa")
-    incidentRef: str = Field(..., alias="incident_ref", description="Referencia de la incidencia procesada")
+    incidentRef: str = Field(..., description="Referencia de la incidencia procesada")
+    incident_ref: Optional[str] = Field(default=None, description="Referencia alternativa en snake_case")
     filename: Optional[str] = Field(default=None, description="Nombre del fichero .pptx generado")
-    downloadUrl: Optional[str] = Field(default=None, alias="download_url", description="URL relativa para descargar el PowerPoint")
-    generatedAt: Optional[str] = Field(default=None, alias="generated_at", description="Fecha y hora ISO de generación")
-    sizeBytes: Optional[int] = Field(default=None, alias="size_bytes", description="Tamaño del archivo en bytes")
-    slideCount: Optional[int] = Field(default=3, alias="slide_count", description="Número de diapositivas generadas")
+    downloadUrl: Optional[str] = Field(default=None, description="URL relativa para descargar el PowerPoint")
+    download_url: Optional[str] = Field(default=None, description="URL relativa alternativa en snake_case")
+    generatedAt: Optional[str] = Field(default=None, description="Fecha y hora ISO de generación")
+    generated_at: Optional[str] = Field(default=None, description="Fecha y hora ISO alternativa en snake_case")
+    sizeBytes: Optional[int] = Field(default=None, description="Tamaño del archivo en bytes")
+    size_bytes: Optional[int] = Field(default=None, description="Tamaño alternativo en bytes en snake_case")
+    slideCount: Optional[int] = Field(default=3, description="Número de diapositivas generadas")
+    slide_count: Optional[int] = Field(default=3, description="Número alternativo de diapositivas en snake_case")
     cached: Optional[bool] = Field(default=False, description="True si se reutilizó un informe existente en disco")
     error: Optional[str] = Field(default=None, description="Mensaje de error si la operación falló")
     details: Optional[str] = Field(default=None, description="Detalles técnicos adicionales en caso de error")
+
+    @model_validator(mode="after")
+    def sync_dual_fields(self):
+        if self.downloadUrl and not self.download_url:
+            self.download_url = self.downloadUrl
+        elif self.download_url and not self.downloadUrl:
+            self.downloadUrl = self.download_url
+
+        if self.incidentRef and not self.incident_ref:
+            self.incident_ref = self.incidentRef
+        elif self.incident_ref and not self.incidentRef:
+            self.incidentRef = self.incident_ref
+
+        if self.sizeBytes is not None and self.size_bytes is None:
+            self.size_bytes = self.sizeBytes
+        elif self.size_bytes is not None and self.sizeBytes is None:
+            self.sizeBytes = self.size_bytes
+
+        if self.slideCount is not None and self.slide_count is None:
+            self.slide_count = self.slideCount
+        elif self.slide_count is not None and self.slideCount is None:
+            self.slideCount = self.slide_count
+
+        if self.generatedAt and not self.generated_at:
+            self.generated_at = self.generatedAt
+        elif self.generated_at and not self.generatedAt:
+            self.generatedAt = self.generated_at
+
+        return self
 
 
 class ExecutiveReportStatusResponseSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     exists: bool = Field(..., description="Indica si el informe .pptx ya está generado y disponible en disco")
-    incidentRef: str = Field(..., alias="incident_ref", description="Referencia de la incidencia consultada")
+    incidentRef: str = Field(..., description="Referencia de la incidencia consultada")
+    incident_ref: Optional[str] = Field(default=None, description="Referencia alternativa en snake_case")
     filename: Optional[str] = Field(default=None, description="Nombre del archivo si existe")
-    downloadUrl: Optional[str] = Field(default=None, alias="download_url", description="URL relativa para descarga")
-    sizeBytes: Optional[int] = Field(default=None, alias="size_bytes", description="Tamaño del archivo en bytes")
+    downloadUrl: Optional[str] = Field(default=None, description="URL relativa para descarga")
+    download_url: Optional[str] = Field(default=None, description="URL relativa alternativa en snake_case")
+    sizeBytes: Optional[int] = Field(default=None, description="Tamaño del archivo en bytes")
+    size_bytes: Optional[int] = Field(default=None, description="Tamaño alternativo en bytes en snake_case")
     error: Optional[str] = Field(default=None, description="Detalle del error si ocurrió alguno")
+
+    @model_validator(mode="after")
+    def sync_dual_fields(self):
+        if self.downloadUrl and not self.download_url:
+            self.download_url = self.downloadUrl
+        elif self.download_url and not self.downloadUrl:
+            self.downloadUrl = self.download_url
+
+        if self.incidentRef and not self.incident_ref:
+            self.incident_ref = self.incidentRef
+        elif self.incident_ref and not self.incidentRef:
+            self.incidentRef = self.incident_ref
+
+        if self.sizeBytes is not None and self.size_bytes is None:
+            self.size_bytes = self.sizeBytes
+        elif self.size_bytes is not None and self.sizeBytes is None:
+            self.sizeBytes = self.size_bytes
+
+        return self
 
