@@ -81,32 +81,39 @@ def extract_fields_from_jira_description(desc: str) -> Dict[str, str]:
     raw_text = desc.strip()
 
     # 1. Limpieza de cabeceras de incidencia tipo *INC12345 - Titulo* o INC12345 - ...
-    lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
-    if not lines:
+    clean_lines = []
+    for line in raw_text.splitlines():
+        line_s = line.strip()
+        if not line_s:
+            continue
+        # Descartar cabeceras tipo INC000004151436 o *INC000004151436 - ...*
+        if re.match(r'^\*?INC\d+.*?(\*|$)', line_s, flags=re.IGNORECASE):
+            sub_part = re.sub(r'^\*?INC\d+.*?(?:[-:]\s*|\*\s*)', '', line_s, flags=re.IGNORECASE).strip()
+            if sub_part and len(sub_part) > 25:
+                clean_lines.append(sub_part)
+            continue
+        # Limpiar prefijo tipo "*Resumen ejecutivo:*" si está en una línea suelta
+        if re.match(r'^\*?Resumen\s+ejecutivo\s*[:\*]*\s*$', line_s, flags=re.IGNORECASE):
+            continue
+        clean_lines.append(line_s)
+
+    if not clean_lines:
         return {}
 
-    # Si la primera línea es únicamente una cabecera de título (ej: *INC...* o INC... breve y hay más líneas)
-    if len(lines) > 1 and (
-        re.match(r'^\*INC\d+.*?(\*|$)', lines[0], flags=re.IGNORECASE)
-        or (re.match(r'^INC\d+\b', lines[0], flags=re.IGNORECASE) and len(lines[0]) < 100 and not lines[0].endswith('.'))
-    ):
-        lines = lines[1:]
-
-    if not lines:
-        return {}
-
-    # Si la primera línea restante empieza con el prefijo INCxxxx - , remover solo el prefijo
-    lines[0] = re.sub(r'^(?:\*?INC\d+\*?\s*[-–:]\s*)', '', lines[0], flags=re.IGNORECASE).strip()
-
-    full_text = "\n".join(lines).strip()
+    full_text = "\n".join(clean_lines).strip()
     impact = ""
     cause = ""
     solution = ""
 
     # Función auxiliar para limpieza de fragmentos y normalización de mayúsculas/puntuación
     def clean_chunk(text: str) -> str:
-        t = re.sub(r'^[,\s;:*\-]+', '', text).strip()
-        t = re.sub(r'[,\s;:*\-]+$', '', t).strip()
+        if not text:
+            return ""
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        cleaned = " ".join(lines)
+        cleaned = re.sub(r'[*_#]+', '', cleaned)
+        cleaned = re.sub(r'\s{2,}', ' ', cleaned)
+        t = cleaned.strip(" \t\r\n:;-|")
         if t:
             t = t[0].upper() + t[1:]
             if not t.endswith(('.', '!', '?')):
@@ -115,7 +122,7 @@ def extract_fields_from_jira_description(desc: str) -> Dict[str, str]:
 
     # 2. Patrones explícitos con etiquetas (Impacto:, Causa:, Solución:, etc.)
     impact_m = re.search(
-        r'(?:^|\n)(?:[-*#\s]*)(?:Impacto|Afectaci[oó]n|Detalle\s+de\s+Impacto)\s*[:\-\*]+\s*(.+?)(?=(?:\n(?:[-*#\s]*)(?:Causa|Soluci[oó]n|Resoluci[oó]n|Acci[oó]n)|$))',
+        r'(?:^|\n)(?:[-*#\s]*)(?:Resumen\s+ejecutivo|Impacto|Afectaci[oó]n|Detalle\s+de\s+Impacto)\s*[:\-\*]+\s*(.+?)(?=(?:\n(?:[-*#\s]*)(?:Causa|Soluci[oó]n|Resoluci[oó]n|Acci[oó]n)|$))',
         full_text,
         flags=re.IGNORECASE | re.DOTALL,
     )
@@ -139,70 +146,109 @@ def extract_fields_from_jira_description(desc: str) -> Dict[str, str]:
         solution = solution_m.group(1).strip()
 
     # Si ya se encontraron al menos 2 campos explícitos, devolverlos normalizados
-    if (impact and cause) or (impact and solution) or (cause and solution):
-        res = {}
-        if impact: res["impactText"] = clean_chunk(impact)
-        if cause: res["causeText"] = clean_chunk(cause)
-        if solution: res["solutionText"] = clean_chunk(solution)
-        return res
+    if not ((impact and cause) or (impact and solution) or (cause and solution)):
+        # 3. Análisis semántico / narrativo en texto libre
+        CAUSE_PATTERN = (
+            r'(?:[.,;\n]|^|\b)\s*(?P<marker>(?:'
+            r'(?:La\s+)?investigaci[oó]n\s+(?:identific[oó]|determin[oó]|concluy[oó])\b|'
+            r'(?:El\s+)?an[aá]lisis\s+(?:determin[oó]|identific[oó]|concluy[oó]|mostr[oó])\b|'
+            r'(?:El\s+)?origen\s+(?:es|fue|ha\s+sido|del\s+fallo|de\s+la\s+incidencia|del\s+problema)\b|'
+            r'La\s+causa\s+(?:ra[ií]z\s+)?(?:es|fue|ha\s+sido|identificada\s+es|identificada\s+fue|identificada)\b|'
+            r'A\s+ra[ií]z\s+de\b|A\s+consecuencia\s+de\b|Motivado\s+por\b|Producido\s+por\b|Causado\s+por\b|Provocado\s+por\b|'
+            r'Debido\s+a\b|A\s+causa\s+de\b|'
+            r'Tras\s+(?:la\s+)?(?:revisi[oó]n|an[aá]lisis|investigaci[oó]n|diagn[oó]stico)\b|'
+            r'Se\s+(?:ha\s+)?(?:detect[oó]|identific[oó]|comprob[oó]|observ[oó]|descubri[oó])\b|'
+            r'detectan\s+error\b|'
+            r'Causa(?:\s+ra[ií]z)?\s*[:\-]'
+            r'))'
+        )
 
-    # 3. Análisis semántico / narrativo en texto libre (párrafo único o continuo)
-    # Expresiones regulares de transición:
-    CAUSE_PATTERN = r'(?:[.,;\n]|^|\b)\s*(?P<marker>(?:Tras\s+(?:la\s+)?(?:revisi[oó]n|an[aá]lisis|investigaci[oó]n|diagn[oó]stico)\b|Se\s+(?:ha\s+)?detect[oó]\b|Se\s+(?:ha\s+)?identific[oó]\b|Se\s+(?:ha\s+)?comprob[oó]\b|Se\s+(?:ha\s+)?observ[oó]\b|Debido\s+a\b|A\s+causa\s+de\b|Motivado\s+por\b|Producido\s+por\b|El\s+origen\s+(?:es|fue|ha\s+sido)\b|La\s+causa\s+(?:ra[ií]z\s+)?(?:es|fue|ha\s+sido)\b|Causa\s*[:\-]))'
-    
-    SOLUTION_PATTERN = r'(?:[.,;\n]|^|\b)\s*(?P<marker>(?:Finalmente\b|Se\s+procedi[oó]\s+a\b|Se\s+procede\s+a\b|Se\s+sustituy[oó]\b|Se\s+sustituye\b|Se\s+reinici[oó]\b|Se\s+reinicia\b|Se\s+realiz[oó]\s+un\s+reinicio\b|Se\s+realizaron\s+reinicios\b|Se\s+escal[oó]\s+a\b|Se\s+escala\s+a\b|Como\s+soluci[oó]n\b|Como\s+medida\b|Para\s+resolver\b|Para\s+mitigar\b|Para\s+recuperar\b|Para\s+solucionar\b|Se\s+aplic[oó]\b|Se\s+aplica\b|Se\s+corrige\b|Se\s+corrigi[oó]\b|Se\s+restableci[oó]\b|Se\s+recuper[oó]\b|Resuelto\b|Soluci[oó]n\s*[:\-]))'
+        SOLUTION_PATTERN = (
+            r'(?:[.,;\n]|^|\b)\s*(?P<marker>(?:'
+            r'(?:Como\s+)?medida\s+(?:correctiva|de\s+contingencia|preventiva|adoptada)\b|'
+            r'(?:Como\s+)?soluci[oó]n\b|'
+            r'Para\s+(?:resolver|mitigar|recuperar|solucionar|restablecer)\b|'
+            r'Se\s+(?:procedi[oó]\s+a|procede\s+a|realiz[oó]|realizaron|aplic[oó]|aplica|conmut[oó]|conmuta|sustituy[oó]|sustituye|reinici[oó]|reinicia|modific[oó]|modifica|corrigi[oó]|corrige|restableci[oó]|restablece|recuper[oó]|recupera|escal[oó]\s+a|escala\s+a)\b|'
+            r'(?:realizando|ejecutando)\s+reinicio\b|'
+            r'quedando\s+(?:la\s+incidencia\s+)?resuelta\b|dando\s+por\s+resuelta\b|'
+            r'confirmando\s+(?:el\s+)?correcto\s+funcionamiento\b|'
+            r'restableci[oó]ndose\s+el\s+servicio\b|recuper[aá]ndose\s+el\s+servicio\b|'
+            r'volvieron\s+a\s+valores\s+normales\b|'
+            r'Una\s+vez\s+(?:hecho\s+esto|realizado)\b|'
+            r'Finalmente\b|Actualmente\s+la\s+incidencia\s+est[aá]\s+resuelta\b|'
+            r'Soluci[oó]n(?:\s+aplicada)?\s*[:\-]'
+            r'))'
+        )
 
-    cause_match = re.search(CAUSE_PATTERN, full_text, flags=re.IGNORECASE)
-    solution_match = re.search(SOLUTION_PATTERN, full_text, flags=re.IGNORECASE)
+        cause_match = re.search(CAUSE_PATTERN, full_text, flags=re.IGNORECASE)
+        solution_match = re.search(SOLUTION_PATTERN, full_text, flags=re.IGNORECASE)
 
-    if cause_match and solution_match:
-        if cause_match.start() < solution_match.start():
-            impact = full_text[:cause_match.start()].strip()
-            cause_start = cause_match.start('marker')
-            cause = full_text[cause_start:solution_match.start()].strip()
-            sol_start = solution_match.start('marker')
-            solution = full_text[sol_start:].strip()
-        else:
-            impact = full_text[:solution_match.start()].strip()
-            sol_start = solution_match.start('marker')
-            solution = full_text[sol_start:cause_match.start()].strip()
-            cause_start = cause_match.start('marker')
-            cause = full_text[cause_start:].strip()
-
-    elif cause_match and not solution_match:
-        impact = full_text[:cause_match.start()].strip()
-        cause_start = cause_match.start('marker')
-        cause = full_text[cause_start:].strip()
-
-    elif solution_match and not cause_match:
-        impact = full_text[:solution_match.start()].strip()
-        sol_start = solution_match.start('marker')
-        solution = full_text[sol_start:].strip()
-
-    # Si aún no se ha podido extraer causa/solución y hay párrafos
-    if not cause and not solution:
-        if len(lines) >= 3:
-            impact = lines[0]
-            cause = lines[1]
-            solution = " ".join(lines[2:])
-        elif len(lines) == 2:
-            impact = lines[0]
-            cause = lines[1]
-            solution = lines[1]
-        elif len(lines) == 1:
-            sentences = [s.strip() for s in re.split(r'\.\s+', full_text) if s.strip()]
-            if len(sentences) >= 3:
-                impact = sentences[0] + "."
-                cause = sentences[1] + "."
-                solution = ". ".join(sentences[2:])
-            elif len(sentences) == 2:
-                impact = sentences[0] + "."
-                if any(w in sentences[1].lower() for w in ["reinic", "sustitu", "resuel", "escal", "aplic", "soluc"]):
-                    solution = sentences[1] + "."
-                else:
-                    cause = sentences[1] + "."
+        if cause_match and solution_match:
+            if cause_match.start() < solution_match.start():
+                impact = full_text[:cause_match.start()].strip()
+                cause = full_text[cause_match.start('marker'):solution_match.start()].strip()
+                solution = full_text[solution_match.start('marker'):].strip()
             else:
-                impact = full_text
+                impact = full_text[:solution_match.start()].strip()
+                solution = full_text[solution_match.start('marker'):cause_match.start()].strip()
+                cause = full_text[cause_match.start('marker'):].strip()
+        elif cause_match and not solution_match:
+            impact = full_text[:cause_match.start()].strip()
+            cause_full = full_text[cause_match.start('marker'):].strip()
+            sol_sub = re.search(SOLUTION_PATTERN, cause_full, flags=re.IGNORECASE)
+            if sol_sub and sol_sub.start('marker') > 25:
+                cause = cause_full[:sol_sub.start()].strip()
+                solution = cause_full[sol_sub.start('marker'):].strip()
+            else:
+                cause = cause_full
+        elif solution_match and not cause_match:
+            impact_full = full_text[:solution_match.start()].strip()
+            solution = full_text[solution_match.start('marker'):].strip()
+            c_sub = re.search(CAUSE_PATTERN, impact_full, flags=re.IGNORECASE)
+            if c_sub:
+                impact = impact_full[:c_sub.start()].strip()
+                cause = impact_full[c_sub.start('marker'):].strip()
+            else:
+                causal_m = re.search(r'(?:[.,;\n]|^)\s*(?:debido\s+a|por\s+(?:fallo|problema|error|llenado|ca[ií]da|saturaci[oó]n|indisponibilidad))\b', impact_full, flags=re.IGNORECASE)
+                if causal_m and causal_m.start() > 25:
+                    impact = impact_full[:causal_m.start()].strip()
+                    cause = impact_full[causal_m.start():].strip()
+                else:
+                    impact = impact_full
+
+    # Fallbacks inteligentes si algún campo queda vacío
+    if not impact:
+        if clean_lines:
+            impact = clean_lines[0]
+        else:
+            impact = full_text
+
+    if not cause:
+        if len(clean_lines) >= 3 and not solution:
+            cause = clean_lines[1]
+            solution = " ".join(clean_lines[2:])
+        elif len(clean_lines) >= 2:
+            cause = clean_lines[1]
+        else:
+            sents = [s.strip() for s in re.split(r'\.\s+', impact) if s.strip()]
+            if len(sents) >= 3 and not solution:
+                impact = sents[0] + "."
+                cause = sents[1] + "."
+                solution = ". ".join(sents[2:]) + "."
+            elif len(sents) >= 2:
+                cause = sents[-1] + "."
+                impact = ". ".join(sents[:-1]) + "."
+            else:
+                cause = "Análisis e investigación técnica realizada sobre el servicio afectado."
+
+    if not solution:
+        if cause and any(w in cause.lower() for w in ['resuel', 'recuper', 'reinic', 'restitu', 'normaliz', 'solvent', 'conmut']):
+            sents = [s.strip() for s in re.split(r'\.\s+', cause) if s.strip()]
+            if len(sents) >= 2:
+                solution = sents[-1] + "."
+                cause = ". ".join(sents[:-1]) + "."
+        if not solution:
+            solution = "Incidencia resuelta y servicio restablecido tras las actuaciones operativas."
 
     result = {}
     if impact:
