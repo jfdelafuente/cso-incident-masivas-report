@@ -10,7 +10,14 @@ import os
 import sys
 
 from models import Base, Report
-from schemas import ReportCreate, ReportUpdate, ReportResponse
+from schemas import (
+    ReportCreate,
+    ReportUpdate,
+    ReportResponse,
+    ExecutiveReportRequestSchema,
+    ExecutiveReportResponseSchema,
+    ExecutiveReportStatusResponseSchema,
+)
 
 # ============ Legacy PPTX Export ============
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -213,30 +220,45 @@ def generate_postmortem_reports_batch():
 
 # ============ Executive Incident Report (PPTX) ============
 
-EXECUTIVE_REPORT_PREFIX = "/api/reports/executive-incident"
+EXECUTIVE_REPORT_PREFIX = "/api/v1/reports/executive-incident"
 
-@app.post("/api/v1/reports/executive-incident")
-@app.post("/api/reports/executive-incident")
-async def generate_executive_report(request: Request):
+@app.post(
+    "/api/v1/reports/executive-incident",
+    response_model=ExecutiveReportResponseSchema,
+    summary="Generar informe ejecutivo PowerPoint (.pptx)",
+    description="Genera o recupera el informe ejecutivo en PowerPoint para una incidencia postmortem. Soporta extracción directa, desde Confluence o desde descripción de Jira.",
+    tags=["Executive Reports"],
+)
+@app.post(
+    "/api/reports/executive-incident",
+    response_model=ExecutiveReportResponseSchema,
+    include_in_schema=False,
+)
+async def generate_executive_report(payload: ExecutiveReportRequestSchema):
     """Genera el informe ejecutivo en PowerPoint para una incidencia postmortem."""
     if not EXECUTIVE_REPORT_AVAILABLE:
         raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
 
-    try:
-        payload = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"JSON inválido: {e}")
-
-    incident_ref = payload.get("incidentRef") or payload.get("incident_ref") or payload.get("id")
+    incident_ref = sanitize_incident_ref(payload.incidentRef)
     if not incident_ref:
         raise HTTPException(status_code=400, detail="Falta el código de incidencia (incidentRef)")
 
-    data_dict = payload.get("data") if isinstance(payload.get("data"), dict) else payload
-    if "incidentRef" not in data_dict:
+    data_dict = payload.data.model_dump() if payload.data else {}
+    if not data_dict.get("incidentRef"):
         data_dict["incidentRef"] = incident_ref
+    if payload.title and not data_dict.get("title"):
+        data_dict["title"] = payload.title
+    if payload.confluenceUrl and not data_dict.get("sourceUrl"):
+        data_dict["sourceUrl"] = payload.confluenceUrl
 
-    raw_content = payload.get("rawContent") or data_dict.get("rawContent") or ""
-    confluence_url = payload.get("confluenceUrl") or data_dict.get("sourceUrl") or ""
+    # Extraer cualquier campo adicional pasado en el cuerpo
+    if payload.model_extra:
+        for k, v in payload.model_extra.items():
+            if v and k not in data_dict:
+                data_dict[k] = v
+
+    raw_content = payload.rawContent or data_dict.get("rawContent") or ""
+    confluence_url = payload.confluenceUrl or data_dict.get("sourceUrl") or ""
 
     if raw_content:
         try:
@@ -266,25 +288,25 @@ async def generate_executive_report(request: Request):
             print(f"  Nota: No se pudo obtener Confluence automáticamente ({ce}). Se usarán datos base.")
 
     # Fallback a datos de Jira si no se obtuvieron o faltan secciones en data_dict
-    jira_desc = data_dict.get("description") or payload.get("description") or ""
+    jira_desc = data_dict.get("description") or ""
     if jira_desc and (not data_dict.get("impactText") or not data_dict.get("causeText") or not data_dict.get("solutionText")):
         extracted = extract_fields_from_jira_description(jira_desc)
         for ek, ev in extracted.items():
             if not data_dict.get(ek):
                 data_dict[ek] = ev
 
-    force = payload.get("force", False)
+    force = payload.force
     target_path = get_executive_report_path(incident_ref)
 
     if target_path.is_file() and not force:
-        return {
-            "success": True,
-            "incidentRef": sanitize_incident_ref(incident_ref),
-            "filename": target_path.name,
-            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{sanitize_incident_ref(incident_ref)}",
-            "sizeBytes": target_path.stat().st_size,
-            "cached": True,
-        }
+        return ExecutiveReportResponseSchema(
+            success=True,
+            incidentRef=incident_ref,
+            filename=target_path.name,
+            downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{incident_ref}",
+            sizeBytes=target_path.stat().st_size,
+            cached=True,
+        )
 
     try:
         incident_data = ExecutiveIncidentData.from_dict(data_dict)
@@ -300,15 +322,16 @@ async def generate_executive_report(request: Request):
             except Exception as clean_err:
                 print(f"  [Cleanup] Aviso no bloqueante: {clean_err}")
 
-        return {
-            "success": True,
-            "incidentRef": metadata.incident_ref,
-            "filename": metadata.filename,
-            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{metadata.incident_ref}",
-            "generatedAt": metadata.generated_at,
-            "sizeBytes": metadata.size_bytes,
-            "slideCount": metadata.slide_count,
-        }
+        return ExecutiveReportResponseSchema(
+            success=True,
+            incidentRef=metadata.incident_ref,
+            filename=metadata.filename,
+            downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{metadata.incident_ref}",
+            generatedAt=metadata.generated_at,
+            sizeBytes=metadata.size_bytes,
+            slideCount=metadata.slide_count,
+            cached=False,
+        )
     except Exception as e:
         print(f"  Error generando informe ejecutivo: {e}")
         raise HTTPException(
@@ -316,8 +339,18 @@ async def generate_executive_report(request: Request):
             detail=f"Error generando informe ejecutivo PowerPoint: {e}"
         )
 
-@app.get("/api/v1/reports/executive-incident/{incident_ref}/status")
-@app.get("/api/reports/executive-incident/{incident_ref}/status")
+@app.get(
+    "/api/v1/reports/executive-incident/{incident_ref}/status",
+    response_model=ExecutiveReportStatusResponseSchema,
+    summary="Estado de disponibilidad del informe ejecutivo",
+    description="Comprueba si el informe ejecutivo .pptx para una incidencia ya está generado en disco y listo para descarga.",
+    tags=["Executive Reports"],
+)
+@app.get(
+    "/api/reports/executive-incident/{incident_ref}/status",
+    response_model=ExecutiveReportStatusResponseSchema,
+    include_in_schema=False,
+)
 def get_executive_report_status(incident_ref: str):
     """Comprueba si el informe ejecutivo para una incidencia ya está generado."""
     if not EXECUTIVE_REPORT_AVAILABLE:
@@ -326,17 +359,25 @@ def get_executive_report_status(incident_ref: str):
     clean_ref = sanitize_incident_ref(incident_ref)
     report_path = get_executive_report_path(clean_ref)
     if report_path.is_file():
-        return {
-            "exists": True,
-            "incidentRef": clean_ref,
-            "filename": report_path.name,
-            "downloadUrl": f"{EXECUTIVE_REPORT_PREFIX}/{clean_ref}",
-            "sizeBytes": report_path.stat().st_size,
-        }
-    return {"exists": False, "incidentRef": clean_ref}
+        return ExecutiveReportStatusResponseSchema(
+            exists=True,
+            incidentRef=clean_ref,
+            filename=report_path.name,
+            downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{clean_ref}",
+            sizeBytes=report_path.stat().st_size,
+        )
+    return ExecutiveReportStatusResponseSchema(exists=False, incidentRef=clean_ref)
 
-@app.get("/api/v1/reports/executive-incident/{incident_ref}")
-@app.get("/api/reports/executive-incident/{incident_ref}")
+@app.get(
+    "/api/v1/reports/executive-incident/{incident_ref}",
+    summary="Descarga del informe ejecutivo PowerPoint (.pptx)",
+    description="Devuelve el archivo binario PowerPoint generado (.pptx) para una incidencia.",
+    tags=["Executive Reports"],
+)
+@app.get(
+    "/api/reports/executive-incident/{incident_ref}",
+    include_in_schema=False,
+)
 def download_executive_report(incident_ref: str):
     """Descarga el informe ejecutivo PowerPoint."""
     if not EXECUTIVE_REPORT_AVAILABLE:
@@ -350,11 +391,13 @@ def download_executive_report(incident_ref: str):
             detail=f"No existe informe generado para la incidencia {clean_ref}. Debe solicitarlo primero."
         )
 
+    content = report_path.read_bytes()
     return Response(
-        content=report_path.read_bytes(),
+        content=content,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={
             "Content-Disposition": f'attachment; filename="{report_path.name}"',
+            "Content-Length": str(len(content)),
             "Access-Control-Allow-Origin": "*",
         },
     )
