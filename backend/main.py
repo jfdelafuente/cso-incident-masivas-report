@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import create_engine, desc
@@ -8,6 +8,8 @@ from pathlib import Path
 import json
 import os
 import sys
+import time
+import uuid
 
 from models import Base, Report
 from schemas import (
@@ -40,7 +42,7 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-app = FastAPI(title="Reportes de Incidencias API", version="1.0.0")
+app = FastAPI(title="Reportes de Incidencias API", version="1.2.0")
 
 # CORS configuration - allow frontend
 allowed_origins_env = os.environ.get("CORS_ORIGINS", "")
@@ -59,7 +61,33 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Process-Time"],
 )
+
+
+# ============ Fase 2.3: Trazabilidad End-to-End (X-Request-ID) ============
+@app.middleware("http")
+async def trace_request_middleware(request: Request, call_next):
+    req_id = request.headers.get("X-Request-ID") or f"req-{uuid.uuid4().hex[:10]}"
+    request.state.request_id = req_id
+    start_ts = time.perf_counter()
+    try:
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start_ts) * 1000.0
+        response.headers["X-Request-ID"] = req_id
+        response.headers["X-Process-Time"] = f"{elapsed_ms:.1f}ms"
+        if request.url.path.startswith("/api/"):
+            print(f"  [{req_id}] {request.method} {request.url.path} -> {response.status_code} ({elapsed_ms:.1f}ms)")
+        return response
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start_ts) * 1000.0
+        print(f"  [{req_id}] ERROR {request.method} {request.url.path} ({elapsed_ms:.1f}ms): {exc}")
+        raise
+
+
+def get_request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or f"req-{uuid.uuid4().hex[:10]}"
+
 
 def get_db():
     db = SessionLocal()
@@ -89,10 +117,13 @@ def readyz(db: Session = Depends(get_db)):
     except Exception:
         db_ok = False
 
+    reports_dir = str(get_executive_reports_dir()) if (EXECUTIVE_REPORT_AVAILABLE and get_executive_reports_dir) else None
+
     return {
         "status": "ready" if db_ok else "degraded",
         "database": "ok" if db_ok else "error",
         "executiveReportEngine": "available" if EXECUTIVE_REPORT_AVAILABLE else "unavailable",
+        "executiveReportsDir": reports_dir,
     }
 
 # ============ Release Dashboard CSV Upload ============
@@ -108,7 +139,6 @@ RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
 # compartan exactamente el mismo contrato de éxito/error.
 sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
 sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT))
-sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "src"))
 try:
     from upload_csv import run_upload  # noqa: E402
     from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
@@ -119,9 +149,10 @@ except ImportError:
     generate_all_reports = None
     DASHBOARD_INTEGRATION_AVAILABLE = False
 
+# Single Source of Truth (Fase 1.1): Motor autónomo de informes ejecutivos en report_generator/
 try:
-    # 1. Importar desde el módulo local autónomo del backend
     from report_generator import (
+        get_executive_reports_dir,
         get_executive_report_path,
         sanitize_incident_ref,
         cleanup_old_executive_reports,
@@ -131,29 +162,17 @@ try:
         ConfluenceParser,
     )
     EXECUTIVE_REPORT_AVAILABLE = True
-except ImportError:
-    try:
-        # 2. Fallback a converters de release-dashboard-application si aplica
-        from converters.src.report_generator.executive_paths import (  # noqa: E402
-            get_executive_report_path,
-            sanitize_incident_ref,
-            cleanup_old_executive_reports,
-        )
-        from converters.src.report_generator.executive_models import (  # noqa: E402
-            ExecutiveIncidentData,
-            extract_fields_from_jira_description,
-        )
-        from converters.src.report_generator.executive_report_builder import ExecutiveReportBuilder  # noqa: E402
-        from converters.src.report_generator.confluence_parser import ConfluenceParser  # noqa: E402
-        EXECUTIVE_REPORT_AVAILABLE = True
-    except ImportError as e:
-        cleanup_old_executive_reports = None
-        print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
-        EXECUTIVE_REPORT_AVAILABLE = False
+except ImportError as e:
+    get_executive_reports_dir = None
+    cleanup_old_executive_reports = None
+    print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
+    EXECUTIVE_REPORT_AVAILABLE = False
 
 print(f"  [Integración] Release Dashboard Root: {RELEASE_DASHBOARD_ROOT} (existe: {RELEASE_DASHBOARD_ROOT.exists()})")
 print(f"  [Integración] Subida CSV & Postmortems: {'OK' if DASHBOARD_INTEGRATION_AVAILABLE else 'NO DISPONIBLE'}")
 print(f"  [Integración] Informes Ejecutivos PPT: {'OK' if EXECUTIVE_REPORT_AVAILABLE else 'NO DISPONIBLE'}")
+if EXECUTIVE_REPORT_AVAILABLE and get_executive_reports_dir:
+    print(f"  [Almacenamiento] Directorio Informes Ejecutivos PPT: {get_executive_reports_dir()}")
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB límite
 
@@ -218,31 +237,17 @@ def generate_postmortem_reports_batch():
         raise HTTPException(status_code=503, detail="Módulo de generación de informes postmortem no disponible")
     return generate_all_reports(project_root=RELEASE_DASHBOARD_ROOT)
 
-# ============ Executive Incident Report (PPTX) ============
+# ============ Executive Incident Report (PPTX) — Fase 2.1 Async + Fase 2.3 Trace ============
 
 EXECUTIVE_REPORT_PREFIX = "/api/v1/reports/executive-incident"
 
-@app.post(
-    "/api/v1/reports/executive-incident",
-    response_model=ExecutiveReportResponseSchema,
-    summary="Generar informe ejecutivo PowerPoint (.pptx)",
-    description="Genera o recupera el informe ejecutivo en PowerPoint para una incidencia postmortem. Soporta extracción directa, desde Confluence o desde descripción de Jira.",
-    tags=["Executive Reports"],
-)
-@app.post(
-    "/api/reports/executive-incident",
-    response_model=ExecutiveReportResponseSchema,
-    include_in_schema=False,
-)
-async def generate_executive_report(payload: ExecutiveReportRequestSchema):
-    """Genera el informe ejecutivo en PowerPoint para una incidencia postmortem."""
-    if not EXECUTIVE_REPORT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+# Registro en memoria del estado de generación por incident_ref:
+# { incident_ref: {"status": "PROCESSING" | "READY" | "FAILED", "startedAt": float, "requestId": str, "error": str | None} }
+_EXECUTIVE_REPORT_JOBS: dict = {}
 
-    incident_ref = sanitize_incident_ref(payload.incidentRef)
-    if not incident_ref:
-        raise HTTPException(status_code=400, detail="Falta el código de incidencia (incidentRef)")
 
+def _execute_report_generation(incident_ref: str, payload: ExecutiveReportRequestSchema, req_id: str) -> ExecutiveReportResponseSchema:
+    """Ejecuta la extracción de Confluence/Jira y la construcción del .pptx (síncrono o en BackgroundTasks)."""
     data_dict = payload.data.model_dump() if payload.data else {}
     if not data_dict.get("incidentRef"):
         data_dict["incidentRef"] = incident_ref
@@ -251,7 +256,6 @@ async def generate_executive_report(payload: ExecutiveReportRequestSchema):
     if payload.confluenceUrl and not data_dict.get("sourceUrl"):
         data_dict["sourceUrl"] = payload.confluenceUrl
 
-    # Extraer cualquier campo adicional pasado en el cuerpo
     if payload.model_extra:
         for k, v in payload.model_extra.items():
             if v and k not in data_dict:
@@ -270,12 +274,12 @@ async def generate_executive_report(payload: ExecutiveReportRequestSchema):
                     base_dict[k] = v
             data_dict = base_dict
         except Exception as pe:
-            print(f"  Aviso al parsear contenido Confluence: {pe}")
+            print(f"  [{req_id}] Aviso al parsear contenido Confluence: {pe}")
     elif confluence_url and not data_dict.get("impactText"):
         try:
             import urllib.request
             req = urllib.request.Request(confluence_url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=2.5) as resp:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
                 html_content = resp.read().decode("utf-8", errors="ignore")
                 parser = ConfluenceParser()
                 parsed_data = parser.parse(html_content, fallback_ref=incident_ref, source_url=confluence_url)
@@ -285,9 +289,8 @@ async def generate_executive_report(payload: ExecutiveReportRequestSchema):
                         base_dict[k] = v
                 data_dict = base_dict
         except Exception as ce:
-            print(f"  Nota: No se pudo obtener Confluence automáticamente ({ce}). Se usarán datos base.")
+            print(f"  [{req_id}] Nota: No se pudo obtener Confluence automáticamente ({ce}). Se usarán datos base.")
 
-    # Fallback a datos de Jira si no se obtuvieron o faltan secciones en data_dict
     jira_desc = data_dict.get("description") or ""
     if jira_desc and (not data_dict.get("impactText") or not data_dict.get("causeText") or not data_dict.get("solutionText")):
         extracted = extract_fields_from_jira_description(jira_desc)
@@ -295,55 +298,147 @@ async def generate_executive_report(payload: ExecutiveReportRequestSchema):
             if not data_dict.get(ek):
                 data_dict[ek] = ev
 
+    target_path = get_executive_report_path(incident_ref)
+    incident_data = ExecutiveIncidentData.from_dict(data_dict)
+    builder = ExecutiveReportBuilder()
+    metadata = builder.generate(incident_data, target_path)
+
+    if cleanup_old_executive_reports:
+        try:
+            cleaned = cleanup_old_executive_reports(max_age_days=14, keep_min=5)
+            if cleaned:
+                print(f"  [{req_id}] [Cleanup] Eliminados {len(cleaned)} informes ejecutivos antiguos: {', '.join(cleaned)}")
+        except Exception as clean_err:
+            print(f"  [{req_id}] [Cleanup] Aviso no bloqueante: {clean_err}")
+
+    _EXECUTIVE_REPORT_JOBS[incident_ref] = {
+        "status": "READY",
+        "startedAt": time.time(),
+        "requestId": req_id,
+        "error": None,
+        "filename": metadata.filename,
+        "sizeBytes": metadata.size_bytes,
+    }
+
+    return ExecutiveReportResponseSchema(
+        success=True,
+        status="READY",
+        incidentRef=metadata.incident_ref,
+        filename=metadata.filename,
+        downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{metadata.incident_ref}",
+        generatedAt=metadata.generated_at,
+        sizeBytes=metadata.size_bytes,
+        slideCount=metadata.slide_count,
+        cached=False,
+        requestId=req_id,
+    )
+
+
+def _background_generate_executive_report(incident_ref: str, payload: ExecutiveReportRequestSchema, req_id: str) -> None:
+    """Tarea en segundo plano (Fase 2.1) para evitar bloqueos y errores 504 Gateway Time-out."""
+    try:
+        _execute_report_generation(incident_ref, payload, req_id)
+        print(f"  [{req_id}] [Async PPTX] Generación completada para {incident_ref}")
+    except Exception as exc:
+        err_msg = f"Error generando informe ejecutivo PowerPoint: {exc}"
+        print(f"  [{req_id}] [Async PPTX] ERROR en {incident_ref}: {err_msg}")
+        _EXECUTIVE_REPORT_JOBS[incident_ref] = {
+            "status": "FAILED",
+            "startedAt": time.time(),
+            "requestId": req_id,
+            "error": err_msg,
+        }
+
+
+@app.post(
+    "/api/v1/reports/executive-incident",
+    response_model=ExecutiveReportResponseSchema,
+    summary="Generar informe ejecutivo PowerPoint (.pptx)",
+    description="Genera o recupera el informe ejecutivo en PowerPoint para una incidencia postmortem. Soporta modo asíncrono (asyncMode=true -> 202 Accepted) con BackgroundTasks.",
+    tags=["Executive Reports"],
+)
+@app.post(
+    "/api/reports/executive-incident",
+    response_model=ExecutiveReportResponseSchema,
+    include_in_schema=False,
+)
+async def generate_executive_report(
+    payload: ExecutiveReportRequestSchema,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    async_query: bool = Query(default=False, alias="async"),
+):
+    """Genera el informe ejecutivo en PowerPoint para una incidencia postmortem."""
+    req_id = get_request_id(request)
+    if not EXECUTIVE_REPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail=f"Módulo de informe ejecutivo no disponible (Ref: {req_id})")
+
+    incident_ref = sanitize_incident_ref(payload.incidentRef)
+    if not incident_ref:
+        raise HTTPException(status_code=400, detail=f"Falta el código de incidencia (incidentRef) (Ref: {req_id})")
+
     force = payload.force
     target_path = get_executive_report_path(incident_ref)
 
     if target_path.is_file() and not force:
         return ExecutiveReportResponseSchema(
             success=True,
+            status="READY",
             incidentRef=incident_ref,
             filename=target_path.name,
             downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{incident_ref}",
             sizeBytes=target_path.stat().st_size,
             cached=True,
+            requestId=req_id,
+        )
+
+    use_async = bool(payload.asyncMode or async_query)
+    _EXECUTIVE_REPORT_JOBS[incident_ref] = {
+        "status": "PROCESSING",
+        "startedAt": time.time(),
+        "requestId": req_id,
+        "error": None,
+    }
+
+    if use_async:
+        background_tasks.add_task(_background_generate_executive_report, incident_ref, payload, req_id)
+        accepted = ExecutiveReportResponseSchema(
+            success=True,
+            status="PROCESSING",
+            incidentRef=incident_ref,
+            filename=target_path.name,
+            downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{incident_ref}",
+            cached=False,
+            requestId=req_id,
+        )
+        return JSONResponse(
+            status_code=202,
+            content=accepted.model_dump(),
+            headers={"X-Request-ID": req_id},
         )
 
     try:
-        incident_data = ExecutiveIncidentData.from_dict(data_dict)
-        builder = ExecutiveReportBuilder()
-        metadata = builder.generate(incident_data, target_path)
-
-        # Higiene automática: eliminar informes en disco con más de 14 días
-        if cleanup_old_executive_reports:
-            try:
-                cleaned = cleanup_old_executive_reports(max_age_days=14, keep_min=5)
-                if cleaned:
-                    print(f"  [Cleanup] Eliminados {len(cleaned)} informes ejecutivos antiguos: {', '.join(cleaned)}")
-            except Exception as clean_err:
-                print(f"  [Cleanup] Aviso no bloqueante: {clean_err}")
-
-        return ExecutiveReportResponseSchema(
-            success=True,
-            incidentRef=metadata.incident_ref,
-            filename=metadata.filename,
-            downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{metadata.incident_ref}",
-            generatedAt=metadata.generated_at,
-            sizeBytes=metadata.size_bytes,
-            slideCount=metadata.slide_count,
-            cached=False,
-        )
+        return _execute_report_generation(incident_ref, payload, req_id)
     except Exception as e:
-        print(f"  Error generando informe ejecutivo: {e}")
+        err_msg = f"Error generando informe ejecutivo PowerPoint: {e}"
+        _EXECUTIVE_REPORT_JOBS[incident_ref] = {
+            "status": "FAILED",
+            "startedAt": time.time(),
+            "requestId": req_id,
+            "error": err_msg,
+        }
+        print(f"  [{req_id}] {err_msg}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error generando informe ejecutivo PowerPoint: {e}"
+            detail=f"{err_msg} (Ref: {req_id})"
         )
+
 
 @app.get(
     "/api/v1/reports/executive-incident/{incident_ref}/status",
     response_model=ExecutiveReportStatusResponseSchema,
     summary="Estado de disponibilidad del informe ejecutivo",
-    description="Comprueba si el informe ejecutivo .pptx para una incidencia ya está generado en disco y listo para descarga.",
+    description="Comprueba el estado del informe ejecutivo .pptx (NOT_FOUND, PROCESSING, READY, FAILED).",
     tags=["Executive Reports"],
 )
 @app.get(
@@ -351,22 +446,50 @@ async def generate_executive_report(payload: ExecutiveReportRequestSchema):
     response_model=ExecutiveReportStatusResponseSchema,
     include_in_schema=False,
 )
-def get_executive_report_status(incident_ref: str):
-    """Comprueba si el informe ejecutivo para una incidencia ya está generado."""
+def get_executive_report_status(incident_ref: str, request: Request):
+    """Comprueba si el informe ejecutivo para una incidencia está en curso, fallido o listo en disco."""
+    req_id = get_request_id(request)
     if not EXECUTIVE_REPORT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Módulo de informe ejecutivo no disponible")
+        raise HTTPException(status_code=503, detail=f"Módulo de informe ejecutivo no disponible (Ref: {req_id})")
 
     clean_ref = sanitize_incident_ref(incident_ref)
+    job = _EXECUTIVE_REPORT_JOBS.get(clean_ref)
+    if job:
+        job_status = job.get("status")
+        job_age = time.time() - float(job.get("startedAt", 0))
+        if job_status == "PROCESSING" and job_age < 120:
+            return ExecutiveReportStatusResponseSchema(
+                exists=False,
+                status="PROCESSING",
+                incidentRef=clean_ref,
+                requestId=job.get("requestId") or req_id,
+            )
+        if job_status == "FAILED" and job_age < 300:
+            return ExecutiveReportStatusResponseSchema(
+                exists=False,
+                status="FAILED",
+                incidentRef=clean_ref,
+                error=job.get("error") or "Error al generar la presentación PowerPoint",
+                requestId=job.get("requestId") or req_id,
+            )
+
     report_path = get_executive_report_path(clean_ref)
     if report_path.is_file():
         return ExecutiveReportStatusResponseSchema(
             exists=True,
+            status="READY",
             incidentRef=clean_ref,
             filename=report_path.name,
             downloadUrl=f"{EXECUTIVE_REPORT_PREFIX}/{clean_ref}",
             sizeBytes=report_path.stat().st_size,
+            requestId=req_id,
         )
-    return ExecutiveReportStatusResponseSchema(exists=False, incidentRef=clean_ref)
+    return ExecutiveReportStatusResponseSchema(
+        exists=False,
+        status="NOT_FOUND",
+        incidentRef=clean_ref,
+        requestId=req_id,
+    )
 
 @app.get(
     "/api/v1/reports/executive-incident/{incident_ref}",

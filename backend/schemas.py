@@ -114,6 +114,7 @@ class ExecutiveReportRequestSchema(BaseModel):
     confluenceUrl: Optional[str] = Field(default=None, alias="confluence_url", description="URL directa a la página Confluence del postmortem")
     rawContent: Optional[str] = Field(default=None, alias="raw_content", description="Contenido HTML o markdown exportado de Confluence")
     force: bool = Field(default=False, description="Forzar regeneración del informe aunque ya exista en caché")
+    asyncMode: bool = Field(default=False, alias="async_mode", description="Si es True, encola la generación con BackgroundTasks y devuelve 202 PROCESSING inmediatamente")
     data: Optional[ExecutiveIncidentDataSchema] = Field(default=None, description="Datos detallados ya parseados si se envían directamente")
 
 
@@ -121,6 +122,7 @@ class ExecutiveReportResponseSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     success: bool = Field(..., description="Indica si la generación o consulta fue exitosa")
+    status: str = Field(default="READY", description="Estado del informe: PROCESSING, READY, FAILED")
     incidentRef: str = Field(..., description="Referencia de la incidencia procesada")
     incident_ref: Optional[str] = Field(default=None, description="Referencia alternativa en snake_case")
     filename: Optional[str] = Field(default=None, description="Nombre del fichero .pptx generado")
@@ -133,6 +135,7 @@ class ExecutiveReportResponseSchema(BaseModel):
     slideCount: Optional[int] = Field(default=3, description="Número de diapositivas generadas")
     slide_count: Optional[int] = Field(default=3, description="Número alternativo de diapositivas en snake_case")
     cached: Optional[bool] = Field(default=False, description="True si se reutilizó un informe existente en disco")
+    requestId: Optional[str] = Field(default=None, alias="request_id", description="Identificador único de traza X-Request-ID")
     error: Optional[str] = Field(default=None, description="Mensaje de error si la operación falló")
     details: Optional[str] = Field(default=None, description="Detalles técnicos adicionales en caso de error")
 
@@ -170,6 +173,7 @@ class ExecutiveReportStatusResponseSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     exists: bool = Field(..., description="Indica si el informe .pptx ya está generado y disponible en disco")
+    status: str = Field(default="NOT_FOUND", description="Estado explícito: NOT_FOUND, PROCESSING, READY, FAILED")
     incidentRef: str = Field(..., description="Referencia de la incidencia consultada")
     incident_ref: Optional[str] = Field(default=None, description="Referencia alternativa en snake_case")
     filename: Optional[str] = Field(default=None, description="Nombre del archivo si existe")
@@ -177,6 +181,7 @@ class ExecutiveReportStatusResponseSchema(BaseModel):
     download_url: Optional[str] = Field(default=None, description="URL relativa alternativa en snake_case")
     sizeBytes: Optional[int] = Field(default=None, description="Tamaño del archivo en bytes")
     size_bytes: Optional[int] = Field(default=None, description="Tamaño alternativo en bytes en snake_case")
+    requestId: Optional[str] = Field(default=None, alias="request_id", description="Identificador único de traza X-Request-ID")
     error: Optional[str] = Field(default=None, description="Detalle del error si ocurrió alguno")
 
     @model_validator(mode="after")
@@ -197,4 +202,5 @@ class ExecutiveReportStatusResponseSchema(BaseModel):
             self.sizeBytes = self.size_bytes
 
         return self
+
 

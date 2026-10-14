@@ -4,6 +4,7 @@ Feature 010: 010-incident-executive-report
 """
 
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -15,6 +16,10 @@ except (ImportError, ValueError):
 
 # Directorio base del repositorio cso-incident-masivas-report
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LEGACY_REPORTS_DIR = Path(__file__).resolve().parent.parent / "data" / "reports" / "executive"
+DEFAULT_PROD_REPORTS_DIR = Path("/infocodes/var/storage/executive_pptx")
+
+_migration_checked = False
 
 
 def get_executive_template_path() -> Path:
@@ -26,28 +31,61 @@ def get_executive_template_path() -> Path:
     if assets_path.is_file():
         return assets_path
 
-    backups = [
-        PROJECT_ROOT / "20260609 Incidencia IVR ExMM.pptx",
-        PROJECT_ROOT.parent / "release-dashboard-application" / "converters" / "src" / "report_generator" / "assets" / "executive_template.pptx",
-    ]
-    for b in backups:
-        if b.is_file():
-            return b
+    backup_root_template = PROJECT_ROOT / "20260609 Incidencia IVR ExMM.pptx"
+    if backup_root_template.is_file():
+        return backup_root_template
 
     raise FileNotFoundError(f"Plantilla PowerPoint no encontrada en {assets_path}")
+
+
+def _migrate_legacy_reports_if_needed(target_dir: Path) -> None:
+    """
+    Migra de forma transparente y sin pérdida de datos los archivos .pptx existentes
+    desde el directorio legado dentro del repositorio (backend/data/reports/executive/)
+    hacia el nuevo directorio externo (ej. /infocodes/var/storage/executive_pptx/).
+    """
+    global _migration_checked
+    if _migration_checked:
+        return
+    _migration_checked = True
+
+    try:
+        if target_dir.resolve() == LEGACY_REPORTS_DIR.resolve():
+            return
+        if not LEGACY_REPORTS_DIR.is_dir():
+            return
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for item in LEGACY_REPORTS_DIR.iterdir():
+            if item.is_file() and item.suffix.lower() == ".pptx" and not item.name.startswith("."):
+                dest = target_dir / item.name
+                if not dest.exists():
+                    shutil.copy2(item, dest)
+                    print(f"[Storage] Migrado informe ejecutivo legado {item.name} -> {dest}")
+    except Exception as e:
+        print(f"[Storage] Aviso: No se pudo completar la migración de informes legados: {e}")
 
 
 def get_executive_reports_dir() -> Path:
     """
     Retorna la ruta al directorio de persistencia de informes ejecutivos, creándolo si no existe.
-    Permite configurar mediante EXECUTIVE_REPORTS_DIR.
+    Orden de prioridad (Fase 1.2):
+    1. Variable de entorno EXECUTIVE_REPORTS_OUTPUT_DIR o EXECUTIVE_REPORTS_DIR
+    2. /infocodes/var/storage/executive_pptx (si existe /infocodes en Linux)
+    3. <repo>/backend/data/reports/executive (entorno de desarrollo local)
     """
-    env_dir = os.environ.get("EXECUTIVE_REPORTS_DIR")
+    env_dir = (
+        os.environ.get("EXECUTIVE_REPORTS_OUTPUT_DIR", "").strip()
+        or os.environ.get("EXECUTIVE_REPORTS_DIR", "").strip()
+    )
     if env_dir:
-        reports_dir = Path(env_dir)
+        reports_dir = Path(env_dir).resolve()
+    elif os.name != "nt" and Path("/infocodes").is_dir():
+        reports_dir = DEFAULT_PROD_REPORTS_DIR
     else:
-        reports_dir = Path(__file__).resolve().parent.parent / "data" / "reports" / "executive"
+        reports_dir = LEGACY_REPORTS_DIR
+
     reports_dir.mkdir(parents=True, exist_ok=True)
+    _migrate_legacy_reports_if_needed(reports_dir)
     return reports_dir
 
 
