@@ -22,39 +22,51 @@ LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
 # Si ya existe una instalación previa con datos, se realiza un backup
 # ANTES de actualizar código o modificar esquemas, garantizando un punto de
 # restauración seguro e inalterado ante cualquier fallo durante el despliegue.
-if [ -f "$DEPLOY_PATH/backend/reports.db" ]; then
-    log_info "Paso 0: Backup preventivo de reports.db antes de actualizar"
+PROD_DB="/infocodes/var/data/cso-incident-masivas-report/reports.db"
+LEGACY_DB="$DEPLOY_PATH/backend/reports.db"
+ACTIVE_DB=""
+if [ -f "$PROD_DB" ]; then
+    ACTIVE_DB="$PROD_DB"
+elif [ -f "$LEGACY_DB" ]; then
+    ACTIVE_DB="$LEGACY_DB"
+fi
+
+if [ -n "$ACTIVE_DB" ]; then
+    log_info "Paso 0: Backup preventivo de $ACTIVE_DB antes de actualizar"
     if [ -f "$DEPLOY_PATH/backend/maintenance.sh" ]; then
         chmod +x "$DEPLOY_PATH/backend/maintenance.sh" 2>/dev/null || true
         (cd "$DEPLOY_PATH/backend" && ./maintenance.sh backup) || {
             log_warn "El backup vía maintenance.sh falló; creando copia directa de seguridad..."
-            mkdir -p "/infocodes/backups/cso-incident-masivas-report"
-            cp "$DEPLOY_PATH/backend/reports.db" "/infocodes/backups/cso-incident-masivas-report/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
+            BACKUP_TARGET_DIR="/infocodes/var/backups/cso-incident-masivas-report"
+            mkdir -p "$BACKUP_TARGET_DIR"
+            cp "$ACTIVE_DB" "$BACKUP_TARGET_DIR/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
         }
     else
-        mkdir -p "/infocodes/backups/cso-incident-masivas-report"
-        cp "$DEPLOY_PATH/backend/reports.db" "/infocodes/backups/cso-incident-masivas-report/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
+        BACKUP_TARGET_DIR="/infocodes/var/backups/cso-incident-masivas-report"
+        mkdir -p "$BACKUP_TARGET_DIR"
+        cp "$ACTIVE_DB" "$BACKUP_TARGET_DIR/reports_predeploy_$(date +%Y%m%d_%H%M%S).db"
     fi
     log_success "Backup preventivo completado"
 fi
 
 # 1. Clonar o actualizar repositorio
-log_info "Paso 1: Clonar/actualizar repositorio"
-# Se captura el commit previo (si ya existía un despliegue) para poder
-# revertir el código fácilmente si esta actualización sale mal -- se
-# recuerda en el resumen final, junto al comando exacto para hacerlo.
-PREV_COMMIT=""
-if [ -d "$DEPLOY_PATH" ]; then
-    cd "$DEPLOY_PATH"
-    PREV_COMMIT="$(git rev-parse --short HEAD)"
-    log_info "Commit actual antes de actualizar: $PREV_COMMIT"
-    git pull origin main
-    log_success "Repositorio actualizado"
+if [ "${DEPLOY_NO_PULL:-0}" = "1" ] || [ "$1" = "--no-pull" ]; then
+    log_info "Paso 1: Omitiendo git pull (--no-pull activo)"
 else
-    mkdir -p "$(dirname "$DEPLOY_PATH")"
-    git clone "$REPO_URL" "$DEPLOY_PATH"
-    cd "$DEPLOY_PATH"
-    log_success "Repositorio clonado"
+    log_info "Paso 1: Clonar/actualizar repositorio"
+    PREV_COMMIT=""
+    if [ -d "$DEPLOY_PATH" ]; then
+        cd "$DEPLOY_PATH"
+        PREV_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'desconocido')"
+        log_info "Commit actual antes de actualizar: $PREV_COMMIT"
+        git pull origin main
+        log_success "Repositorio actualizado"
+    else
+        mkdir -p "$(dirname "$DEPLOY_PATH")"
+        git clone "$REPO_URL" "$DEPLOY_PATH"
+        cd "$DEPLOY_PATH"
+        log_success "Repositorio clonado"
+    fi
 fi
 
 # 2. Preparar backend
@@ -105,22 +117,36 @@ print("Base de datos inicializada")
 EOF
 log_success "Base de datos lista"
 
-# 4. Actualizar Nginx
-log_info "Paso 4: Actualizar configuración Nginx"
-log_warn "nginx.conf es COMPARTIDO con otras apps de este servidor: /static, /dashboards, /data, /problemas (Gestión de Problemas). Se hace backup automático antes de sobrescribir, con rollback si la validación falla."
+# 4. Actualizar Nginx (Modular conf.d)
+log_info "Paso 4: Actualizar configuración Nginx (Arquitectura Modular)"
 NGINX_BIN="/infocodes/nginx/sbin/nginx"
 NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
-NGINX_BACKUP="$NGINX_CONF.backup.$(date +%Y%m%d_%H%M%S)"
-if [ -f "$NGINX_CONF" ]; then
+NGINX_CONF_D="/infocodes/nginx/conf/conf.d"
+CSO_SNIPPET="$DEPLOY_PATH/nginx/conf.d/cso-incident.conf"
+NGINX_BACKUP=""
+
+mkdir -p "$NGINX_CONF_D"
+
+# Si nginx.conf del servidor aún no incluye conf.d/*.conf, se migra aplicando la plantilla marco
+if [ -f "$NGINX_CONF" ] && ! grep -q "conf\.d/\*\.conf" "$NGINX_CONF" 2>/dev/null; then
+    log_info "Nginx principal aún no modularizado. Migrando a arquitectura 'include conf.d/*.conf'..."
+    NGINX_BACKUP="$NGINX_CONF.backup.$(date +%Y%m%d_%H%M%S)"
     cp "$NGINX_CONF" "$NGINX_BACKUP"
+    cp "$DEPLOY_PATH/nginx.conf" "$NGINX_CONF"
 fi
-cp "$DEPLOY_PATH/nginx.conf" "$NGINX_CONF"
+
+# Instalar snippet propio del repositorio sin interferir en los demás
+if [ -f "$CSO_SNIPPET" ]; then
+    log_info "Desplegando snippet modular en $NGINX_CONF_D/cso-incident.conf"
+    cp "$CSO_SNIPPET" "$NGINX_CONF_D/cso-incident.conf"
+fi
+
 if "$NGINX_BIN" -c "$NGINX_CONF" -t; then
     "$NGINX_BIN" -c "$NGINX_CONF" -s reload
-    log_success "Nginx configurado y recargado"
+    log_success "Nginx validado y recargado con configuración modular aislada"
 else
-    log_error "Configuración de Nginx inválida, restaurando backup"
-    [ -f "$NGINX_BACKUP" ] && cp "$NGINX_BACKUP" "$NGINX_CONF"
+    log_error "Configuración de Nginx inválida, restaurando versión previa"
+    [ -n "$NGINX_BACKUP" ] && [ -f "$NGINX_BACKUP" ] && cp "$NGINX_BACKUP" "$NGINX_CONF"
     exit 1
 fi
 
@@ -154,7 +180,7 @@ echo ""
 echo "📍 Ubicaciones:"
 echo "   Frontend: $FRONTEND_PATH"
 echo "   Backend:  $DEPLOY_PATH/backend"
-echo "   Base datos: $DEPLOY_PATH/backend/reports.db"
+echo "   Base datos: ${ACTIVE_DB:-/infocodes/var/data/cso-incident-masivas-report/reports.db}"
 echo ""
 echo "🌐 Acceso:"
 echo "   URL: http://10.132.68.85:8081/reportes-incidencias"

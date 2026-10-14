@@ -17,6 +17,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/lib.sh"
 
+# Cargar variables locales desde .env si existe
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
 PORT="${BACKEND_PORT:-8000}"
 LEGACY_PID_FILE="$SCRIPT_DIR/backend.pid"
 LEGACY_REPORTS_DIR="$SCRIPT_DIR/data/reports/executive"
@@ -25,14 +33,17 @@ if [ -d "/infocodes" ]; then
     PID_FILE="${PID_FILE:-$PID_DIR/cso-backend.pid}"
     export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-/infocodes/var/storage/executive_pptx}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
+    export DATABASE_URL="${DATABASE_URL:-sqlite:////infocodes/var/data/cso-incident-masivas-report/reports.db}"
+    mkdir -p "$PID_DIR" "/infocodes/var/data/cso-incident-masivas-report" "$EXECUTIVE_REPORTS_OUTPUT_DIR"
 else
     PID_DIR="$SCRIPT_DIR"
     PID_FILE="${PID_FILE:-$LEGACY_PID_FILE}"
     export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-$LEGACY_REPORTS_DIR}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
 fi
-LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+LOG_DIR="${LOG_DIR:-/infocodes/logs/cso-incident-masivas-report}"
 LOG_FILE="$LOG_DIR/backend.log"
+mkdir -p "$LOG_DIR"
 HEALTH_URL="http://localhost:$PORT/api/health"
 PYTHON_BIN="$SCRIPT_DIR/venv/bin/python3"
 HEALTH_RETRIES=15

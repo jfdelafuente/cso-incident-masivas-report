@@ -34,10 +34,32 @@ except Exception as e:
     LEGACY_PPTX_AVAILABLE = False
 
 # Database setup
+# Prioridad de resolución de la base de datos:
+# 1. Variable de entorno DATABASE_URL (si viene explícita)
+# 2. En producción Linux con /infocodes:
+#    /infocodes/var/data/cso-incident-masivas-report/reports.db
+#    (con migración automática transparente desde backend/reports.db si procede)
+# 3. Entorno local/desarrollo: backend/reports.db
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
-    db_file = Path(__file__).resolve().parent / "reports.db"
+    legacy_db_file = Path(__file__).resolve().parent / "reports.db"
+    prod_var_data = Path("/infocodes/var/data/cso-incident-masivas-report")
+    if os.name != "nt" and Path("/infocodes").is_dir():
+        try:
+            prod_var_data.mkdir(parents=True, exist_ok=True)
+            prod_db_file = prod_var_data / "reports.db"
+            if legacy_db_file.is_file() and not prod_db_file.exists():
+                import shutil
+                shutil.copy2(legacy_db_file, prod_db_file)
+                print(f"[Database] Migrada base de datos de {legacy_db_file} -> {prod_db_file}")
+            db_file = prod_db_file
+        except Exception as e:
+            print(f"[Database] Aviso: No se pudo usar directorio persistente {prod_var_data}: {e}; usando ruta local.")
+            db_file = legacy_db_file
+    else:
+        db_file = legacy_db_file
     DATABASE_URL = f"sqlite:///{db_file}"
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -126,30 +148,11 @@ def readyz(db: Session = Depends(get_db)):
         "executiveReportsDir": reports_dir,
     }
 
-# ============ Release Dashboard CSV Upload ============
-# Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/)
-RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
-    "RELEASE_DASHBOARD_ROOT",
-    str(Path(__file__).resolve().parent.parent.parent / "release-dashboard-application")
-))
-
-# La orquestación "CSV guardado -> conversor -> resultado" vive una sola vez
-# en converters/cli/upload_csv.py (repo release-dashboard-application), para
-# que este backend y el servidor de desarrollo de ese repo (serve_app.py)
-# compartan exactamente el mismo contrato de éxito/error.
-sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
-sys.path.insert(0, str(RELEASE_DASHBOARD_ROOT))
-try:
-    from upload_csv import run_upload  # noqa: E402
-    from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
-    DASHBOARD_INTEGRATION_AVAILABLE = True
-except ImportError:
-    run_upload = None
-    generate_report = None
-    generate_all_reports = None
-    DASHBOARD_INTEGRATION_AVAILABLE = False
-
 # Single Source of Truth (Fase 1.1): Motor autónomo de informes ejecutivos en report_generator/
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 try:
     from report_generator import (
         get_executive_reports_dir,
@@ -167,6 +170,33 @@ except ImportError as e:
     cleanup_old_executive_reports = None
     print(f"  Aviso: Módulo de informe ejecutivo no disponible: {e}")
     EXECUTIVE_REPORT_AVAILABLE = False
+
+# ============ Release Dashboard CSV Upload ============
+# Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/)
+RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
+    "RELEASE_DASHBOARD_ROOT",
+    str(Path(__file__).resolve().parent.parent.parent / "release-dashboard-application")
+))
+
+# La orquestación "CSV guardado -> conversor -> resultado" vive una sola vez
+# en converters/cli/upload_csv.py (repo release-dashboard-application), para
+# que este backend y el servidor de desarrollo de ese repo (serve_app.py)
+# compartan exactamente el mismo contrato de éxito/error.
+# Se usa append al final del path para evitar suplantar paquetes propios del backend.
+if str(RELEASE_DASHBOARD_ROOT / "converters" / "cli") not in sys.path:
+    sys.path.append(str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
+if str(RELEASE_DASHBOARD_ROOT) not in sys.path:
+    sys.path.append(str(RELEASE_DASHBOARD_ROOT))
+
+try:
+    from upload_csv import run_upload  # noqa: E402
+    from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
+    DASHBOARD_INTEGRATION_AVAILABLE = True
+except ImportError:
+    run_upload = None
+    generate_report = None
+    generate_all_reports = None
+    DASHBOARD_INTEGRATION_AVAILABLE = False
 
 print(f"  [Integración] Release Dashboard Root: {RELEASE_DASHBOARD_ROOT} (existe: {RELEASE_DASHBOARD_ROOT.exists()})")
 print(f"  [Integración] Subida CSV & Postmortems: {'OK' if DASHBOARD_INTEGRATION_AVAILABLE else 'NO DISPONIBLE'}")

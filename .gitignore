@@ -17,3 +17,11 @@ backend.pid
 reportes/
 scratch/
 *ReporteIncidencias*
+
+# Archives and environment files
+*.tar.gz
+*.tgz
+*.whl
+.env
+.env.local
+

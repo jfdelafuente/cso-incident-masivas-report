@@ -27,3 +27,9 @@ reports.db
 *.sqlite3
 backend.pid
 nohup.out
+*.tar.gz
+*.tgz
+*.whl
+.env
+.env.local
+

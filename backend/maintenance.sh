@@ -33,10 +33,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/lib.sh"
 
-DB_FILE="$SCRIPT_DIR/reports.db"
-LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+# Cargar variables locales desde .env si existe
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
+if [ -d "/infocodes" ]; then
+    PROD_DB="/infocodes/var/data/cso-incident-masivas-report/reports.db"
+    LEGACY_DB="$SCRIPT_DIR/reports.db"
+    if [ ! -f "$PROD_DB" ] && [ -f "$LEGACY_DB" ]; then
+        DB_FILE="${DATABASE_FILE:-$LEGACY_DB}"
+    else
+        DB_FILE="${DATABASE_FILE:-$PROD_DB}"
+    fi
+    BACKUP_DIR="${BACKUP_DIR:-/infocodes/var/backups/cso-incident-masivas-report}"
+else
+    DB_FILE="${DATABASE_FILE:-$SCRIPT_DIR/reports.db}"
+    BACKUP_DIR="${BACKUP_DIR:-$SCRIPT_DIR/backups}"
+fi
+LOG_DIR="${LOG_DIR:-/infocodes/logs/cso-incident-masivas-report}"
 LOG_FILE="$LOG_DIR/backend.log"
-BACKUP_DIR="/infocodes/backups/cso-incident-masivas-report"
 
 BACKUP_RETENTION=7
 LOG_ROTATE_RETENTION=8
