@@ -1,396 +1,282 @@
-# 📦 Despliegue a Staging - Automatización de Reportes Semanales
+# 📦 Guía de Despliegue — Automatización de Reportes Semanales (Staging / Producción)
 
-Guía completa para desplegar la aplicación "Automatización de reportes semanales" al servidor staging en **10.132.68.85:8081** (`infocodes.si.orange.es`).
-
-> 💡 El script [`deploy.sh`](deploy.sh) automatiza todos los pasos de esta guía (clonar/actualizar, dependencias, BD, Nginx, backend). Para el flujo recomendado basado en `scp` + `deploy.sh`, ver [`STAGING_DEPLOYMENT.md`](STAGING_DEPLOYMENT.md). Esta guía cubre los mismos pasos de forma manual, útil para depurar un fallo puntual del script.
-
-**Ruta de despliegue en el servidor:** `/infocodes/project/cso-incident-masivas-report`
+Guía completa para desplegar y mantener la aplicación "Automatización de reportes semanales" en el servidor de producción / staging en **10.132.68.85:8081** (`infocodes.si.orange.es`, host `AOTLXPRBOA00001`).
 
 ---
 
-## 🎯 Arquitectura
+## 🎯 Arquitectura del Sistema
 
 ```
-┌─────────────────────────────────────────────────┐
-│           Nginx (10.132.68.85:8081)              │
-├─────────────────────────────────────────────────┤
-│  Frontend (HTML/JS/CSS) ← → Backend (FastAPI)   │
-│  /reportes-incidencias        :8000             │
-└─────────────────────────────────────────────────┘
-         ↓                            ↓
-   [app/]                    [backend/main.py]
-   - index.html (home)       - SQLAlchemy ORM
-   - editor.html             - SQLite DB
-   - preview.html            - CORS enabled
-   - styles.css
+                         ┌────────────────────────────────────────────────────────┐
+                         │               Nginx (10.132.68.85:8081)                │
+                         │             /infocodes/nginx/sbin/nginx                │
+                         ├────────────────────────────────────────────────────────┤
+                         │  conf/nginx.conf ──► include conf/conf.d/*.conf        │
+                         │                        └── cso-incident.conf           │
+                         └───────┬───────────────────────────────┬────────────────┘
+                                 │                               │
+                Frontend estático│                               │ Proxy pass /api,
+             /reportes-incidencias                               │ /healthz, /readyz
+                                 ▼                               ▼
+                 ┌───────────────────────────────┐  ┌───────────────────────────────┐
+                 │       [app/ (HTML/JS/CSS)]    │  │   [Backend FastAPI (:8000)]   │
+                 │   - index.html (dashboard)    │  │   - main.py (FastAPI)         │
+                 │   - editor.html (editor deck) │  │   - models.py & schemas.py    │
+                 │   - preview.html (slides)     │  │   - executive_report_generator│
+                 │   - styles.css & branding     │  │   - service.sh / uvicorn      │
+                 └───────────────────────────────┘  └───────────────┬───────────────┘
+                                                                    │
+                                   Persistencia desacoplada en      │
+                                        /infocodes/var/             ▼
+                 ┌──────────────────────────────────────────────────────────────────┐
+                 │  - SQLite DB: var/data/cso-incident-masivas-report/reports.db    │
+                 │  - PPTX Storage: var/storage/executive_pptx/ (compartido)        │
+                 │  - PID File: var/run/cso-backend.pid                             │
+                 │  - Backups: var/backups/cso-incident-masivas-report/             │
+                 │  - Logs: /infocodes/logs/cso-incident-masivas-report/            │
+                 └──────────────────────────────────────────────────────────────────┘
 ```
+
+### Relación con Aplicaciones Hermanas
+
+El servidor `AOTLXPRBOA00001` aloja varios servicios compartidos bajo el usuario `infocodes`:
+- **`cso-incident-masivas-report`** (este servicio): Fuente de la verdad de incidencias y generador canónico de informes ejecutivos en PowerPoint (`.pptx`).
+- **`gestion-problemas-dashboard`** (`/problemas`): Dashboard Next.js que consume las APIs ejecutivas y enlaza a la descarga directa del PPTX semanal.
+- **`release-dashboard-application`** (`/dashboards`): Tablero de gestión de versiones y releases.
+- **Epsilon IA Proxy** (`/api/epsilon/`): Integración de modelos LLM internos.
 
 ---
 
-## 📋 Requisitos previos
+## 📋 Requisitos Previos
 
-**En el servidor:**
-- Python 3.8+ (para FastAPI backend)
-- Nginx (ya instalado)
-- SQLite3 (incluido en Python)
-- Git (para clonar el repositorio)
-- Google Chrome (solo para el informe PPT de Postmortem por Release — ver paso 3)
-- Librerías de sistema para Chrome headless (ver paso 3) — **requiere sudo**,
-  a diferencia del resto de este paso que se instala dentro del venv
+**En el servidor (`AOTLXPRBOA00001` - `10.132.26.96` / `10.132.68.85`):**
+- Python 3.8+ con módulo virtualenv (`venv`).
+- Nginx instalado en `/infocodes/nginx/` con soporte de `conf.d/*.conf`.
+- Acceso SSH para el usuario `infocodes` (puerto 22).
+- Google Chrome headless (necesario únicamente si se utiliza el generador heredado Kaleido).
 
-**Verificar:**
-```bash
-python3 --version
-nginx -v
-```
-
-> No hace falta el binario `sqlite3` de línea de comandos — ni `deploy.sh` ni `maintenance.sh` dependen de él (usan el módulo `sqlite3` de la librería estándar de Python en su lugar, ver sección "Base de datos" más abajo). Existe en el servidor (`/infocodes/sqlite3/bin/sqlite3`), pero no está en el `$PATH` por defecto; en vez de depender de esa ruta concreta (o de que cada sesión/cron tenga el `$PATH` correcto), se usa Python, que ya es una dependencia obligatoria del backend.
+**En el puesto de desarrollo (Windows):**
+- PowerShell 5.1+ o PowerShell 7+.
+- Cliente OpenSSH (`ssh`, `scp`) configurado en el `PATH`.
+- Git para Windows (`git`).
 
 ---
 
-## 🚀 Pasos de despliegue
+## 🚀 Opciones de Despliegue
 
-### 1. Conectarse al servidor
+Dispones de tres métodos de despliegue según el caso de uso:
 
-```bash
-ssh usuario@10.132.68.85
-mkdir -p /infocodes/project
-cd /infocodes/project
+### Opción A: Despliegue en 1 Clic desde Windows (Recomendado)
+
+Desde tu terminal de PowerShell en tu equipo local:
+
+```powershell
+# Despliegue estándar: valida git, sincroniza archivos, actualiza backend y Nginx
+powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1
 ```
 
-### 2. Clonar el repositorio
+**Modos avanzados del script de PowerShell:**
 
-```bash
-git clone https://github.com/jfdelafuente/cso-incident-masivas-report.git
-cd cso-incident-masivas-report
-```
-
-### 3. Preparar el backend
-
-```bash
-# Entrar en directorio backend
-cd backend
-
-# Crear entorno virtual (opcional pero recomendado)
-python3 -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-
-# Instalar dependencias
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
-
-# kaleido (usado para renderizar las gráficas del informe PPT de Postmortem
-# por Release) necesita Chrome instalado desde la versión 1.x en adelante —
-# sin este paso, la descarga del informe falla con "Kaleido requires
-# Google Chrome to be installed". Se instala en el propio venv, sin sudo:
-plotly_get_chrome -y
-```
-
-En servidores mínimos (sin entorno de escritorio) el Chrome descargado por
-`plotly_get_chrome` puede arrancar y cerrarse al instante por faltar
-librerías del sistema (error: *"The browser seemed to close immediately
-after starting"*). Comprueba qué falta (no necesita sudo, no ejecuta
-Chrome):
-
-```bash
-ldd ~/.local/share/choreographer/deps/chrome-linux64/chrome | grep "not found"
-```
-
-Si la lista no está vacía, instala las dependencias de Chrome headless
-(esto sí necesita sudo, a diferencia de todo lo anterior):
-
-```bash
-sudo apt update
-sudo apt install -y \
-  ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
-  libatspi2.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
-  libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 \
-  libpangocairo-1.0-0 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 \
-  libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
-  libxss1 libxtst6
-```
-
-> Confirmado en el servidor real (Ubuntu/Debian, sin acceso sudo del
-> operador habitual): faltaban exactamente `libnspr4`, `libnss3` (+
-> `libnssutil3`/`libsmime3`, del mismo paquete), `libatk-bridge2.0-0`,
-> `libatk1.0-0`, `libatspi2.0-0`, `libcups2`, `libxcb1`, `libx11-6`,
-> `libxcomposite1`, `libxdamage1`, `libxext6`, `libxfixes3`, `libxrandr2`,
-> `libgbm1`, `libcairo2`, `libpango-1.0-0`, `libasound2` — el listado
-> completo de arriba ya los cubre a todos. Como el operador habitual no
-> tiene sudo, esta instalación la tiene que ejecutar una sola vez alguien
-> con permisos de administrador en el servidor.
-
-(En Rocky Linux/RHEL, usa `dnf install` con los paquetes equivalentes —
-`nss`, `atk`, `at-spi2-atk`, `cups-libs`, `libXcomposite`, `libXdamage`,
-`libXrandr`, `mesa-libgbm`, `pango`, `alsa-lib`, etc.)
-
-### 4. Configurar la base de datos
-
-```bash
-# FastAPI crea la BD automáticamente, pero puedes inicializarla:
-python3 -c "from main import Base, engine; Base.metadata.create_all(bind=engine)"
-
-# Verificar que se creó:
-ls -la reports.db
-```
-
-### 5. Iniciar el backend (en background)
-
-Todo corre bajo el usuario `infocodes` (uid=2001), sin acceso root ni a systemd, así que el backend se gestiona con [`service.sh`](backend/service.sh) en vez de una unidad systemd. El script mantiene un PID file, comprueba que el puerto no esté ocupado por otro proceso antes de arrancar, y espera activamente al healthcheck en vez de un `sleep` fijo:
-
-```bash
-chmod +x service.sh
-./service.sh start     # arranca (no hace nada si ya está corriendo)
-./service.sh status    # PID + healthcheck
-./service.sh restart   # para (si aplica) y vuelve a arrancar
-./service.sh stop      # para de forma ordenada (SIGTERM, luego SIGKILL si no responde)
-```
-
-Logs en `/infocodes/logs/cso-incident-masivas-report/backend.log` (fuera del árbol del repo), PID en `backend/backend.pid` (ignorado por git).
-
-**Verificar que está corriendo:**
-```bash
-curl --noproxy '*' http://localhost:8000/api/health
-# Debe responder: {"status":"ok","service":"Reportes de Incidencias API"}
-```
-
-> ⚠️ Si la sesión tiene `http_proxy`/`https_proxy` definidas (habitual en este servidor), `curl` enruta incluso `localhost` a través del proxy corporativo, que responde `403 Forbidden` aunque el backend esté sano. Usa siempre `--noproxy '*'` para comprobaciones locales — `service.sh` ya lo hace internamente. Si un `curl` contra la IP/dominio público del propio servidor (`10.132.68.85:8081` o `infocodes.si.orange.es:8081`) devuelve el mismo `403` estando todo sano, prueba también con `--noproxy '*'` — depende de cómo esté configurado el proxy en esa sesión concreta.
-
-### 6. Configurar Nginx
-
-El servidor `10.132.68.85:8081` es compartido con otras aplicaciones (`/static`, `/dashboards`, `/data`, `/problemas` — el dashboard "Gestión de Problemas", Next.js con pm2 —, etc.), así que **no se sustituye por un bloque genérico**: el repo ya incluye la configuración completa y actualizada en [`nginx.conf`](nginx.conf), con el bloque `/reportes-incidencias` apuntando a `/infocodes/project/cso-incident-masivas-report/app` y `/api` haciendo proxy al backend FastAPI en el puerto 8000.
-
-En este servidor, Nginx corre desde una instalación propia bajo `/infocodes/nginx`, con el binario en `/infocodes/nginx/sbin/nginx` y la configuración en `/infocodes/nginx/conf/nginx.conf`. Como todo el árbol `/infocodes` es propiedad del usuario `infocodes` (uid=2001) con el que se opera — sin root ni systemd —, estas operaciones **no llevan `sudo`**.
-
-**Hacer backup de la configuración actual y aplicar la del repo:**
-```bash
-cp /infocodes/nginx/conf/nginx.conf /infocodes/nginx/conf/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
-cp /infocodes/project/cso-incident-masivas-report/nginx.conf /infocodes/nginx/conf/nginx.conf
-/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
-```
-
-Si la validación falla, restaura el backup antes de continuar:
-```bash
-cp /infocodes/nginx/conf/nginx.conf.backup.<timestamp> /infocodes/nginx/conf/nginx.conf
-```
-
-**Recargar Nginx (sin systemd, se envía la señal directamente al binario):**
-```bash
-/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
-
-# Verificar que el proceso master está vivo:
-ps -ef | grep '[n]ginx: master process'
-```
-
-> ⚠️ Si otra persona modificó `/infocodes/nginx/conf/nginx.conf` directamente en el servidor sin reflejarlo en el repo, sobrescribir con `nginx.conf` del repo perdería esos cambios. Revisa el diff (`diff /infocodes/nginx/conf/nginx.conf /infocodes/project/cso-incident-masivas-report/nginx.conf`) antes de copiar si no estás seguro.
-
-### 7. Verificar el despliegue
-
-```bash
-# Accede a: http://10.132.68.85:8081/reportes-incidencias
-# Debe cargar index.html (la página de inicio con el listado de informes) sin errores
-
-# Verificar API
-curl http://10.132.68.85:8081/api/reports
-```
+| Parámetro | Descripción |
+|---|---|
+| `-VerifyOnly` | Solo ejecuta sondas de salud (`/healthz`, `/readyz`) y verifica procesos sin alterar nada. |
+| `-RestartOnly` | Reinicia el servicio backend FastAPI en el servidor remoto sin transferir archivos. |
+| `-Rollback` | Restaura el último backup de la base de datos `reports.db` y reinicia el servicio. |
+| `-SyncFiles` | Sincroniza ficheros estáticos (`app/`, `backend/`, `nginx/`) por SCP sin reiniciar. |
+| `-DryRun` | Muestra los comandos y validaciones que se ejecutarían sin aplicarlos. |
 
 ---
 
-## 🔧 Supervisión del backend sin systemd
+### Opción B: Despliegue Directo en el Servidor Linux (`deploy.sh`)
 
-El usuario `infocodes` no tiene acceso root, por lo que no es posible instalar una unidad systemd (`/etc/systemd/system/...`) para el backend. [`service.sh`](backend/service.sh) (sección 5) es el único mecanismo de gestión: PID file propio, arranque/parada ordenados y healthcheck con reintentos.
-
-Si en el futuro se necesita reinicio automático ante caídas (equivalente a `Restart=always` de systemd) sin depender de systemd, la opción habitual es un cron que llame a `service.sh status` cada pocos minutos y ejecute `service.sh start` si ha caído — puede añadirse cuando haga falta, pero no forma parte de este despliegue por ahora.
-
----
-
-## ✅ Checklist de validación
-
-### Frontend
-- [ ] Accede a http://10.132.68.85:8081/reportes-incidencias
-- [ ] Carga index.html (listado de informes) correctamente
-- [ ] Los estilos se ven bien (colores Orange)
-- [ ] Las imágenes/logos cargan
-
-### Backend API
-- [ ] `curl http://10.132.68.85:8081/api/reports` retorna lista de reportes
-- [ ] `curl http://10.132.68.85:8081/api/health` retorna `{"status":"ok"}`
-- [ ] Los logs muestran solicitudes HTTP
-
-### Funcionalidad
-- [ ] **Home:** Lista reportes y permite crear nuevos
-- [ ] **Editor:** Carga un reporte y permite editar incidencias
-- [ ] **Preview:** Muestra slides con estilos Orange
-- [ ] **Descargas:** PDF y PPT se descargan correctamente
-- [ ] **Auto-save:** Los cambios se guardan automáticamente
-- [ ] **Status:** Puede cambiar estado draft/reviewed/published
-
-### Base de datos
-- [ ] `ls -la /infocodes/project/cso-incident-masivas-report/backend/reports.db` existe
-- [ ] Puedes consultar: `python3 -c "import sqlite3; print(sqlite3.connect('reports.db').execute('SELECT COUNT(*) FROM reports;').fetchone()[0])"` (no hay binario `sqlite3` en el servidor — se usa el módulo estándar de Python, ver nota más abajo)
-
----
-
-## 🐛 Troubleshooting
-
-### La API no responde (503/504)
-
-```bash
-# Verificar que el backend está corriendo
-cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status
-
-# Verificar logs
-tail -f /infocodes/nginx/logs/error.log
-tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
-
-# Reiniciar
-./service.sh restart
-```
-
-### CORS errors en navegador
-
-```bash
-# Verificar que la API permite CORS
-curl -i -X OPTIONS http://10.132.68.85:8081/api/reports \
-  -H "Origin: http://10.132.68.85:8081" \
-  -H "Access-Control-Request-Method: GET"
-```
-
-### Base de datos bloqueada
-
-```bash
-# Reiniciar el servicio para liberar la BD
-cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh restart
-
-# O limpiar locks de SQLite:
-rm -f /infocodes/project/cso-incident-masivas-report/backend/reports.db-*
-```
-
-### Nginx no actualiza cambios del frontend
-
-```bash
-# Limpiar caché del navegador (Ctrl+Shift+Delete)
-# O acceder con ?nocache=1
-
-# Forzar actualización de Nginx:
-/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
-```
-
----
-
-## 📊 Monitoreo
-
-**Ver logs en tiempo real:**
-```bash
-# Logs de Nginx
-tail -f /infocodes/var/log/nginx/infocodes.access.log | grep reportes
-
-# Logs de la API
-tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
-
-# Verificar procesos
-watch -n 1 "cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status"
-```
-
-**Estadísticas de base de datos** (sin el binario `sqlite3` — existe en `/infocodes/sqlite3/bin/sqlite3` pero no está en el `$PATH` por defecto; se usa el módulo `sqlite3` de Python en su lugar, la misma vía que ya usa `maintenance.sh` internamente):
-```bash
-python3 -c "
-import sqlite3
-conn = sqlite3.connect('/infocodes/project/cso-incident-masivas-report/backend/reports.db')
-print('Reportes:', conn.execute('SELECT COUNT(*) FROM reports;').fetchone()[0])
-print('Tablas:', [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table';\").fetchall()])
-"
-```
-
----
-
-## 🔐 Seguridad (Opcional pero recomendado)
-
-### Habilitar HTTPS
-
-```nginx
-server {
-    listen 8081 ssl;
-    ssl_certificate /infocodes/nginx/certs/cert.pem;
-    ssl_certificate_key /infocodes/nginx/certs/key.pem;
-    
-    # ... resto de configuración
-}
-```
-
-### Limitar acceso a IP específicas
-
-```nginx
-location /api {
-    allow 10.0.0.0/8;      # Red interna
-    deny all;
-    
-    proxy_pass http://fastapi_backend;
-}
-```
-
-### Configurar rate limiting
-
-```nginx
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-
-location /api {
-    limit_req zone=api_limit burst=20 nodelay;
-    proxy_pass http://fastapi_backend;
-}
-```
-
----
-
-## 📝 Actualizaciones futuras
-
-Para actualizar el código:
+Si estás conectado por SSH al servidor (`infocodes@10.132.26.96`):
 
 ```bash
 cd /infocodes/project/cso-incident-masivas-report
-git pull origin main
-
-# Si hay cambios en requirements.txt:
-source backend/venv/bin/activate
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r backend/requirements.txt
-
-# Si kaleido se instala o actualiza por primera vez (ver "Requisitos previos"):
-plotly_get_chrome -y
-
-# Reiniciar API
-cd backend && ./service.sh restart
+bash deploy.sh
 ```
 
-> Basta con volver a ejecutar `bash deploy.sh` desde el repo — hace `git pull`, reinstala dependencias, actualiza Nginx y reinicia el backend vía `service.sh` automáticamente.
+El script `deploy.sh` realiza automáticamente:
+1. Comprobación y pulling del último commit de Git (`git pull origin main`).
+2. Activación del venv e instalación de dependencias en `backend/`.
+3. Creación y verificación de directorios en `/infocodes/var/` (`data/`, `storage/`, `run/`, `backups/`).
+4. Backup preventivo automático de `reports.db`.
+5. Copia modular de la configuración Nginx (`nginx/conf.d/cso-incident.conf` → `/infocodes/nginx/conf/conf.d/`).
+6. Validación (`nginx -t`) y recarga suave de Nginx (`nginx -s reload`).
+7. Reinicio controlado del servicio backend mediante `backend/service.sh restart`.
+8. Verificación de las sondas de salud (`/healthz` y `/readyz`).
 
 ---
 
-## 📞 Soporte
+### Opción C: Despliegue Manual Paso a Paso (Para Troubleshooting)
 
-**Logs útiles:**
-- Nginx (error): `/infocodes/nginx/logs/error.log`
-- Nginx (acceso): `/infocodes/var/log/nginx/infocodes.access.log`
-- API: `/infocodes/logs/cso-incident-masivas-report/backend.log`
-- Consola navegador: F12 → Console
+Útil para diagnosticar un fallo puntual en la cadena de automatización:
 
-**Comandos de utilidad:**
+#### 1. Conexión y preparación de directorios
 ```bash
-# Verificar puertos en uso
-lsof -i :8081 -i :8000
+ssh infocodes@10.132.26.96
+mkdir -p /infocodes/var/data/cso-incident-masivas-report
+mkdir -p /infocodes/var/storage/executive_pptx
+mkdir -p /infocodes/var/run
+mkdir -p /infocodes/var/backups/cso-incident-masivas-report
+mkdir -p /infocodes/logs/cso-incident-masivas-report
+```
 
-# Detener el backend de forma ordenada (preferido sobre matar por puerto)
-cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh stop
+#### 2. Actualizar el código
+```bash
+cd /infocodes/project/cso-incident-masivas-report
+git fetch origin main
+git reset --hard origin/main
+```
 
-# Matar proceso por puerto (último recurso, si service.sh no puede pararlo)
-fuser -k 8000/tcp
+#### 3. Entorno virtual y dependencias
+```bash
+cd /infocodes/project/cso-incident-masivas-report/backend
+python3 -m venv venv
+source venv/bin/activate
+pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
+```
 
-# Listar procesos Python
-ps aux | grep python
+#### 4. Configurar variables de entorno (.env)
+Asegurar que existe el fichero `/infocodes/project/cso-incident-masivas-report/backend/.env`:
+```ini
+DATABASE_URL=sqlite:////infocodes/var/data/cso-incident-masivas-report/reports.db
+EXECUTIVE_PPTX_STORAGE_DIR=/infocodes/var/storage/executive_pptx
+BACKUP_DIR=/infocodes/var/backups/cso-incident-masivas-report
+PID_FILE=/infocodes/var/run/cso-backend.pid
+PORT=8000
+HOST=0.0.0.0
+```
 
-# Ver espacio en disco
-df -h /infocodes
+#### 5. Configuración Modular de Nginx
+```bash
+# Copiar el bloque del sitio a conf.d (sin sobreescribir nginx.conf global)
+cp /infocodes/project/cso-incident-masivas-report/nginx/conf.d/cso-incident.conf /infocodes/nginx/conf/conf.d/
+
+# Probar la sintaxis
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
+
+# Recargar Nginx
+/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload
+```
+
+#### 6. Iniciar el Backend
+```bash
+cd /infocodes/project/cso-incident-masivas-report/backend
+./service.sh restart
 ```
 
 ---
 
-**Última actualización:** 2026-07-17  
-**Versión:** 1.2
+## 🩺 Sondas de Observabilidad y Salud
+
+El backend expone endpoints estandarizados de observabilidad:
+
+| Endpoint | Tipo | Propósito | Respuesta Esperada |
+|---|---|---|---|
+| `GET /healthz` | Liveness Probe | Verifica que el proceso HTTP esté vivo y respondiendo. | `{"status":"ok","uptime":...}` (HTTP 200) |
+| `GET /readyz` | Readiness Probe | Verifica que la base de datos SQLite y el motor PPTX estén listos. | `{"status":"ready","database":"ok","executiveReportEngine":"available"}` (HTTP 200) |
+| `GET /api/health` | Legacy Health | Compatibilidad hacia atrás con scripts anteriores. | `{"status":"ok","service":"Reportes de Incidencias API"}` (HTTP 200) |
+
+**Verificación directa desde el servidor:**
+```bash
+# Nota: Usar siempre --noproxy '*' por el proxy corporativo
+curl --noproxy '*' http://localhost:8000/healthz
+curl --noproxy '*' http://localhost:8000/readyz
+curl --noproxy '*' http://localhost:8081/healthz
+```
+
+**Cabeceras de Diagnóstico:**
+Todas las respuestas HTTP incluyen cabeceras para trazar tiempos y peticiones:
+- `X-Request-ID`: Identificador UUID único de la petición.
+- `X-Process-Time`: Tiempo de procesamiento en el servidor (ej. `0.0042s`).
+
+---
+
+## ✅ Checklist de Validación Post-Despliegue
+
+### 1. Frontend
+- [ ] Acceso a `http://10.132.68.85:8081/reportes-incidencias`.
+- [ ] Carga `index.html` con la lista de informes de incidencias sin alertas de error.
+- [ ] Los estilos Orange, fuentes e iconos cargan correctamente.
+- [ ] El editor (`editor.html?report=YYYY-Wxx`) permite editar y auto-guardar.
+- [ ] La vista previa (`preview.html?report=YYYY-Wxx`) renderiza las diapositivas.
+
+### 2. Backend & APIs Ejecutivas
+- [ ] `curl --noproxy '*' http://localhost:8000/readyz` devuelve status `ready`.
+- [ ] Listado de reportes: `curl --noproxy '*' http://localhost:8081/api/reports` devuelve array JSON.
+- [ ] Descarga PPTX semanal: `curl -I http://10.132.68.85:8081/api/reports/2026-W41/legacy-pptx` devuelve HTTP 200.
+- [ ] Endpoint de sincronización con `gestion-problemas-dashboard`:
+  `curl http://10.132.68.85:8081/api/reports/executive/summary` responde correctamente.
+
+### 3. Persistencia
+- [ ] Base de datos en `/infocodes/var/data/cso-incident-masivas-report/reports.db` accesible.
+- [ ] Backup automático creado en `/infocodes/var/backups/cso-incident-masivas-report/`.
+- [ ] PID registrado en `/infocodes/var/run/cso-backend.pid`.
+
+---
+
+## 🐛 Resolución de Problemas (Troubleshooting)
+
+### Error 502 / 504 Bad Gateway
+- Comprueba si el backend está en ejecución:
+  ```bash
+  cd /infocodes/project/cso-incident-masivas-report/backend && ./service.sh status
+  ```
+- Si está parado, examina el log de errores:
+  ```bash
+  tail -n 50 /infocodes/logs/cso-incident-masivas-report/backend.log
+  ./service.sh start
+  ```
+
+### Nginx falla en el reload (`nginx -t` error)
+- Revisa el fichero modular `conf.d/cso-incident.conf`:
+  ```bash
+  /infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -t
+  ```
+- Si hay un error de sintaxis en `conf.d/cso-incident.conf`, puedes restaurar la versión anterior o eliminarlo temporalmente sin romper el `nginx.conf` principal.
+
+### Falso Negativo 403 Forbidden al hacer `curl`
+- **Causa**: Las variables `http_proxy` / `https_proxy` en la shell corporativa redirigen el tráfico de `localhost` hacia el proxy saliente.
+- **Solución**: Añadir siempre el flag `--noproxy '*'`:
+  ```bash
+  curl --noproxy '*' http://127.0.0.1:8000/readyz
+  ```
+
+### Bloqueo de Base de Datos SQLite (database locked)
+- Asegúrate de que no haya procesos zombis accediendo a la base de datos:
+  ```bash
+  fuser /infocodes/var/data/cso-incident-masivas-report/reports.db
+  ```
+- Reinicia el backend con `./service.sh restart`.
+
+---
+
+## 📝 Procedimiento de Rollback
+
+Si una versión desplegada presenta incidencias graves:
+
+**Vía PowerShell (Windows):**
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1 -Rollback
+```
+
+**Vía SSH (Linux):**
+```bash
+# 1. Revertir código a un commit anterior
+cd /infocodes/project/cso-incident-masivas-report
+git log -n 5 --oneline
+git checkout <COMMIT_HASH_ANTERIOR>
+
+# 2. Restaurar base de datos
+cd backend
+./maintenance.sh restore
+
+# 3. Reiniciar servicio
+./service.sh restart
+```
+
+---
+
+**Última actualización:** Octubre 2026  
+**Versión de despliegue:** 2.0 (Persistencia `/infocodes/var/` y Nginx Modular `conf.d`)
