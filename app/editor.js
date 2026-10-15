@@ -27,6 +27,7 @@ const ReportEditor = {
     // Setup auto-save on changes (only if not in view mode)
     if (!this.isViewMode) {
       this.setupAutoSave();
+      this.setupKeyboardShortcuts();
       this.enableEditControls();
     } else {
       this.disableEditControls();
@@ -187,6 +188,36 @@ const ReportEditor = {
     document.addEventListener('incident-changed', () => {
       this.isDirty = true;
       this.scheduleAutoSave();
+    });
+  },
+
+  setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      // Ctrl+S o Cmd+S: Guardado inmediato
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        this.saveReport();
+        return;
+      }
+
+      // Alt+Up / Alt+Down: Reordenación de la incidencia activa
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        if (typeof App !== 'undefined' && App.state) {
+          const curIdx = App.state.openIdx;
+          const incidents = App.state.incidents || [];
+          if (curIdx >= 0 && curIdx < incidents.length) {
+            const dir = e.key === 'ArrowUp' ? -1 : 1;
+            const targetIdx = curIdx + dir;
+            if (targetIdx >= 0 && targetIdx < incidents.length) {
+              App.moveIncident(curIdx, dir);
+              if (window.Toast) {
+                Toast.info(`Incidencia movida a posición ${targetIdx + 1}`, 1200);
+              }
+            }
+          }
+        }
+      }
     });
   },
 

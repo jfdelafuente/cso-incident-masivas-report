@@ -5,6 +5,7 @@
 const { sev, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, computeStats, highlightIncident, truncateText, weekdayBreakdown, sortIncidents, groupIncidentsForSlides, buildPptxDeck, buildPdfHtml, downloadPdf, downloadPptx } = window.ReportRender;
 
 function esc(v) {
+  if (window.FormatUtils) return window.FormatUtils.esc(v);
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -47,6 +48,33 @@ const HomePage = {
     document.getElementById('duplicateForm').addEventListener('submit', (e) => this.handleDuplicateSubmit(e));
 
     document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
+
+    // Auto-cálculo de rango de fechas al teclear año o semana en el modal
+    const updateRangeOnYearWeekChange = () => {
+      const y = parseInt(document.getElementById('formYear')?.value, 10);
+      const w = parseInt(document.getElementById('formWeek')?.value, 10);
+      if (y && w && window.DateUtils) {
+        document.getElementById('formRange').value = window.DateUtils.getWeekDateRange(y, w);
+      }
+    };
+    document.getElementById('formYear')?.addEventListener('input', updateRangeOnYearWeekChange);
+    document.getElementById('formWeek')?.addEventListener('input', updateRangeOnYearWeekChange);
+
+    // Ergonomía: Cerrar modales con Escape
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.closeModal();
+        this.closeDuplicateModal();
+      }
+    });
+
+    // Ergonomía: Cerrar modal clicando fuera del diálogo
+    document.getElementById('reportModal')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('reportModal')) this.closeModal();
+    });
+    document.getElementById('duplicateModal')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('duplicateModal')) this.closeDuplicateModal();
+    });
   },
 
   setStatusFilter(value) {
@@ -87,6 +115,7 @@ const HomePage = {
   // for 2026, since Jan 1 2026 falls on a Thursday), which showed the
   // *previous* week's report as "current" instead of this week's.
   currentYearWeek() {
+    if (window.DateUtils) return window.DateUtils.getIsoYearWeek();
     const today = new Date();
     const d = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
@@ -280,7 +309,7 @@ const HomePage = {
     const { year, week } = this.currentYearWeek();
     document.getElementById('formYear').value = year;
     document.getElementById('formWeek').value = week;
-    document.getElementById('formRange').value = '';
+    document.getElementById('formRange').value = window.DateUtils ? window.DateUtils.getWeekDateRange(year, week) : '';
     document.getElementById('formDept').value = 'Customer & Service Operations';
     document.getElementById('formStatus').value = 'draft';
     document.getElementById('formNotes').value = '';

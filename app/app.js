@@ -24,9 +24,11 @@
   }
 
   function titleOrCat(inc) {
+    if (window.FormatUtils) return window.FormatUtils.titleOrCat(inc);
     return inc.title || [inc.category, inc.system].filter(Boolean).join(' · ') || 'Incidencia';
   }
   function esc(v) {
+    if (window.FormatUtils) return window.FormatUtils.esc(v);
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -337,6 +339,12 @@
       const isOpen = this.state.openIdx === idx;
       const s = sev(inc.severity);
       const title = titleOrCat(inc);
+      const val = (window.FormatUtils && window.FormatUtils.validateIncident)
+        ? window.FormatUtils.validateIncident(inc)
+        : { isValid: true, missingFields: [] };
+      const warningBadge = !val.isValid
+        ? '<span class="badge-warning-indicator" title="Faltan datos obligatorios: ' + esc(val.missingFields.join(', ')) + '" style="margin-left:6px; font-size:9px; vertical-align:middle;">⚠️ Incompleta</span>'
+        : '';
       return (
         '<div class="mo-row" data-row="' + idx + '" style="border:1px solid #DEDAD3; border-radius:9px; overflow:hidden; background:#fff;">' +
           '<div class="mo-incrow" data-role="header" data-i="' + idx + '" style="display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer; background:#F7F6F4;">' +
@@ -346,7 +354,10 @@
             '</div>' +
             '<span data-role="dot" style="width:9px; height:9px; border-radius:50%; flex:none; background:' + s.color + ';"></span>' +
             '<div style="flex:1; min-width:0;">' +
-              '<div data-role="group" style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#FF7900;">' + esc(inc.group) + '</div>' +
+              '<div data-role="group" style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#FF7900; display:flex; align-items:center; gap:4px;">' +
+                '<span>' + esc(inc.group) + '</span>' +
+                warningBadge +
+              '</div>' +
               '<div data-role="title" style="font-size:12px; font-weight:600; color:#26241F; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(title) + '</div>' +
             '</div>' +
             '<button class="mo-btn" data-role="remove" data-i="' + idx + '" title="Eliminar incidencia" style="flex:none; width:24px; height:24px; border:1px solid #DEDAD3; border-radius:6px; background:#fff; color:#8A857C; font-size:14px; line-height:1; cursor:pointer;">×</button>' +
