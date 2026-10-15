@@ -12,3 +12,4 @@
 > 4. Consume directamente la API headless FastAPI de este repositorio (`cso-incident-masivas-report/backend`) en el puerto 8000.
 > 
 > **Cualquier cambio futuro en la interfaz, estilos o vistas debe realizarse en `release-dashboard-application/dashboards/reportes-incidencias/`.**
+
