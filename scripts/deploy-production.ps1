@@ -396,54 +396,51 @@ if [ -f "`$SHARED_DIR/.env" ]; then
 fi
 
 # 7. Normalizar permisos y saltos de línea (evitar problemas de CRLF de Windows)
-sed -i 's/\r$//' "`$NEW_RELEASE_DIR`"/backend/*.sh "`$NEW_RELEASE_DIR`"/*.sh 2>/dev/null || true
-chmod +x "`$NEW_RELEASE_DIR`"/backend/*.sh "`$NEW_RELEASE_DIR`"/*.sh 2>/dev/null || true
+sed -i 's/\r$//' "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/dev/null || true
+chmod +x "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/dev/null || true
 
 # 8. Comprobar / actualizar dependencias de Python si requirements.txt lo requiere
-source "`$SHARED_DIR/venv/bin/activate`"
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r "`$NEW_RELEASE_DIR/backend/requirements.txt`" || true
+if [ -x "`$SHARED_DIR/venv/bin/pip" ]; then
+    "`$SHARED_DIR/venv/bin/pip" install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r "`$NEW_RELEASE_DIR/backend/requirements.txt" || true
+fi
 
-# 9. Inicializar/migrar esquemas de base de datos
+# 9. Inicializar/migrar esquemas de base de datos usando el venv
 (
-    cd "`$NEW_RELEASE_DIR/backend`"
-    python3 << 'EOF'
-from main import Base, engine
-Base.metadata.create_all(bind=engine)
-print("Base de datos verificada")
-EOF
+    cd "`$NEW_RELEASE_DIR/backend"
+    "`$SHARED_DIR/venv/bin/python3" -c "from main import Base, engine; Base.metadata.create_all(bind=engine); print('Base de datos verificada')"
 )
 
 # 10. Desplegar configuración Nginx modular
-if [ -f "`$NEW_RELEASE_DIR/nginx/conf.d/cso-incident.conf`" ] && [ -d "`$NGINX_CONF_D`" ]; then
+if [ -f "`$NEW_RELEASE_DIR/nginx/conf.d/cso-incident.conf" ] && [ -d "`$NGINX_CONF_D" ]; then
     echo "--> [Remoto] Sincronizando snippet modular Nginx en `$NGINX_CONF_D/cso-incident.conf..."
-    cp -f "`$NEW_RELEASE_DIR/nginx/conf.d/cso-incident.conf`" "`$NGINX_CONF_D/cso-incident.conf`"
-    if [ -x "`$NGINX_BIN`" ]; then
-        if "`$NGINX_BIN`" -c "`$NGINX_CONF`" -t >/dev/null 2>&1; then
-            "`$NGINX_BIN`" -c "`$NGINX_CONF`" -s reload
+    cp -f "`$NEW_RELEASE_DIR/nginx/conf.d/cso-incident.conf" "`$NGINX_CONF_D/cso-incident.conf"
+    if [ -x "`$NGINX_BIN" ]; then
+        if "`$NGINX_BIN" -c "`$NGINX_CONF" -t >/dev/null 2>&1; then
+            "`$NGINX_BIN" -c "`$NGINX_CONF" -s reload
             echo "--> [Remoto] Nginx recargado con éxito."
         fi
     fi
 fi
 
 # 11. Detener backend anterior (libera el puerto limpiamente)
-if [ -L "`$CURRENT_LINK`" ] && [ -x "`$CURRENT_LINK/backend/service.sh`" ]; then
-    "`$CURRENT_LINK/backend/service.sh`" stop || true
-elif [ -x "`$REMOTE_DIR/backend/service.sh`" ]; then
-    "`$REMOTE_DIR/backend/service.sh`" stop || true
+if [ -L "`$CURRENT_LINK" ] && [ -x "`$CURRENT_LINK/backend/service.sh" ]; then
+    "`$CURRENT_LINK/backend/service.sh" stop || true
+elif [ -x "`$REMOTE_DIR/backend/service.sh" ]; then
+    "`$REMOTE_DIR/backend/service.sh" stop || true
 fi
 
 # 12. Switch atómico del enlace simbólico 'current'
 echo "--> [Remoto] Activando symlink atómico: current -> releases/`$RELEASE_ID"
-ln -sfn "releases/`$RELEASE_ID" "`$CURRENT_LINK`"
+ln -sfn "releases/`$RELEASE_ID" "`$CURRENT_LINK"
 
 # 13. Sincronizar scripts de control en la raíz de la aplicación
-cp -f "`$NEW_RELEASE_DIR/rollback.sh`" "`$REMOTE_DIR/rollback.sh`"
-cp -f "`$NEW_RELEASE_DIR/status.sh`" "`$REMOTE_DIR/status.sh`"
-chmod +x "`$REMOTE_DIR`"/*.sh 2>/dev/null || true
+cp -f "`$NEW_RELEASE_DIR/rollback.sh" "`$REMOTE_DIR/rollback.sh"
+cp -f "`$NEW_RELEASE_DIR/status.sh" "`$REMOTE_DIR/status.sh"
+chmod +x "`$REMOTE_DIR"/*.sh 2>/dev/null || true
 
 # 14. Limpiar archivos residuales del antiguo clon en la raíz ($REMOTE_DIR)
 #     Solo deben quedar: current, releases, shared, rollback.sh, status.sh, VERSION
-for entry in `$(ls -A "`$REMOTE_DIR`"); do
+for entry in `$(ls -A "`$REMOTE_DIR"); do
     case "`$entry" in
         current|releases|shared|rollback.sh|status.sh|VERSION)
             ;;
@@ -456,15 +453,15 @@ done
 
 # 15. Arrancar el nuevo servicio backend desde 'current'
 echo "--> [Remoto] Arrancando backend FastAPI desde `$CURRENT_LINK/backend..."
-cd "`$CURRENT_LINK/backend`"
+cd "`$CURRENT_LINK/backend"
 ./service.sh restart
 
 # 16. Rotación de releases (conservar las 3 más recientes)
-RELEASES_COUNT=`$(find "`$RELEASES_DIR`" -mindepth 1 -maxdepth 1 -type d | wc -l)
+RELEASES_COUNT=`$(find "`$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
 if [ "`$RELEASES_COUNT" -gt 3 ]; then
-    find "`$RELEASES_DIR`" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | while read -r OLD_REL; do
-        echo "--> [Remoto] Rotación: eliminando release antigua `$(basename "`$OLD_REL`")..."
-        rm -rf "`$OLD_REL`"
+    find "`$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | while read -r OLD_REL; do
+        echo "--> [Remoto] Rotación: eliminando release antigua `$(basename "`$OLD_REL")..."
+        rm -rf "`$OLD_REL"
     done
 fi
 
