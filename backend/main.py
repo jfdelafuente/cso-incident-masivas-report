@@ -182,7 +182,10 @@ def find_release_dashboard_root() -> Path:
         if p.exists():
             return p
 
-    # 2. Ruta estándar de producción en el VPS
+    # 2. Ruta estándar de producción en el VPS (prioriza release activa 'current')
+    prod_current = Path("/infocodes/project/release-dashboard-application/current")
+    if prod_current.exists():
+        return prod_current
     prod_standard = Path("/infocodes/project/release-dashboard-application")
     if prod_standard.exists():
         return prod_standard
