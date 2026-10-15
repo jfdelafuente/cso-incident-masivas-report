@@ -59,6 +59,7 @@ else
         cd "$DEPLOY_PATH"
         PREV_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'desconocido')"
         log_info "Commit actual antes de actualizar: $PREV_COMMIT"
+        git checkout -- . 2>/dev/null || true
         git pull origin main
         log_success "Repositorio actualizado"
     else
