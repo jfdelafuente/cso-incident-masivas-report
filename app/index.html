@@ -497,6 +497,42 @@ select.status-badge {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Current Week Badge & Placeholder */
+.badge-current-week {
+  background: #FF7900;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.current-week-placeholder {
+  border: 2px dashed #FF7900;
+  background: #FFFBF7;
+  padding: 20px 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.current-week-placeholder .placeholder-badge {
+  display: inline-block;
+  background: #FFF1E6;
+  color: #FF7900;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
 </style>
 </head>
 <body>
@@ -607,7 +643,7 @@ select.status-badge {
 <script src="assets/ui-feedback.js"></script>
 <script src="api-client.js"></script>
 <script src="report-render.js"></script>
-<script src="home.js"></script>
+<script src="home.js?v=2"></script>
 <script src="assets/topbar.js?v=2" defer></script>
 
 </body>

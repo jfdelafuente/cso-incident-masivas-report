@@ -114,7 +114,7 @@ const HomePage = {
     // report is always shown regardless of it, so it can't ever hide the
     // one report you're most likely here to check on.
     const { year: curYear, week: curWeek } = this.currentYearWeek();
-    const isCurrentWeek = (r) => r.year === curYear && r.week === curWeek;
+    const isCurrentWeek = (r) => Number(r.year) === Number(curYear) && Number(r.week) === Number(curWeek);
     const currentWeekReports = this.reports.filter(isCurrentWeek);
     const allOtherReports = this.reports.filter(r => !isCurrentWeek(r));
     const otherReportsFiltered = this.statusFilter === 'all'
@@ -122,12 +122,27 @@ const HomePage = {
       : allOtherReports.filter(r => r.status === this.statusFilter);
 
     let html = '';
+
+    // 1. Sección superior: Semana actual (siempre presente y destacada)
+    html += `<div class="reports-section-title">Semana actual (W${curWeek})</div>`;
     if (currentWeekReports.length) {
-      html += '<div class="reports-section-title">Semana actual</div>';
       html += `<div class="reports-grid">${currentWeekReports.map(r => this.reportCardHtml(r, true)).join('')}</div>`;
+    } else {
+      html += `
+        <div class="report-card current-week-placeholder">
+          <div>
+            <span class="placeholder-badge">Semana ${curWeek} en curso</span>
+            <div style="font-weight:700; color:#1A1815; font-size:14px; margin-top:4px;">No se ha creado el informe para la semana actual (${curYear}-W${String(curWeek).padStart(2, '0')})</div>
+            <div style="font-size:12.5px; color:#8A857C; margin-top:2px;">Crea el informe de esta semana para registrar y consolidar incidencias.</div>
+          </div>
+          <button class="btn btn-primary" onclick="HomePage.openNewReportModal()">+ Crear Informe Semana ${curWeek}</button>
+        </div>
+      `;
     }
+
+    // 2. Sección inferior: Otras semanas (en formato tabla)
     if (allOtherReports.length) {
-      html += currentWeekReports.length ? '<div class="reports-section-title">Otras semanas</div>' : '';
+      html += '<div class="reports-section-title" style="margin-top: 36px;">Otras semanas</div>';
       html += this.statusFilterHtml();
       html += otherReportsFiltered.length
         ? this.reportsTableHtml(otherReportsFiltered)
@@ -214,7 +229,10 @@ const HomePage = {
     return `
       <div class="report-card${isCurrentWeek ? ' current-week' : ''}">
         <div class="report-header">
-          <div class="report-id">${reportIdEsc}</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="report-id">${reportIdEsc}</div>
+            ${isCurrentWeek ? '<span class="badge-current-week">Semana actual</span>' : ''}
+          </div>
           <select class="status-badge status-${esc(report.status)}" data-report-id="${reportIdEsc}" onchange="HomePage.changeStatus(this.dataset.reportId, this.value)">
             <option value="draft" ${report.status === 'draft' ? 'selected' : ''}>Draft</option>
             <option value="reviewed" ${report.status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
