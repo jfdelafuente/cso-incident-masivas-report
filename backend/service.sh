@@ -34,12 +34,14 @@ if [ -d "/infocodes" ]; then
     export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-/infocodes/var/storage/executive_pptx}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
     export DATABASE_URL="${DATABASE_URL:-sqlite:////infocodes/var/data/cso-incident-masivas-report/reports.db}"
+    export RELEASE_DASHBOARD_ROOT="${RELEASE_DASHBOARD_ROOT:-/infocodes/project/release-dashboard-application}"
     mkdir -p "$PID_DIR" "/infocodes/var/data/cso-incident-masivas-report" "$EXECUTIVE_REPORTS_OUTPUT_DIR"
 else
     PID_DIR="$SCRIPT_DIR"
     PID_FILE="${PID_FILE:-$LEGACY_PID_FILE}"
     export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-$LEGACY_REPORTS_DIR}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
+    export RELEASE_DASHBOARD_ROOT="${RELEASE_DASHBOARD_ROOT:-$SCRIPT_DIR/../../release-dashboard-application}"
 fi
 LOG_DIR="${LOG_DIR:-/infocodes/logs/cso-incident-masivas-report}"
 LOG_FILE="$LOG_DIR/backend.log"

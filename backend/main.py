@@ -173,11 +173,34 @@ except ImportError as e:
     EXECUTIVE_REPORT_AVAILABLE = False
 
 # ============ Release Dashboard CSV Upload ============
-# Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/)
-RELEASE_DASHBOARD_ROOT = Path(os.environ.get(
-    "RELEASE_DASHBOARD_ROOT",
-    str(Path(__file__).resolve().parent.parent.parent / "release-dashboard-application")
-))
+# Repo hermano: mismo padre en local (proyectos/) y en producción (/infocodes/project/)
+def find_release_dashboard_root() -> Path:
+    # 1. Variable de entorno explícita
+    env_root = os.environ.get("RELEASE_DASHBOARD_ROOT")
+    if env_root:
+        p = Path(env_root).resolve()
+        if p.exists():
+            return p
+
+    # 2. Ruta estándar de producción en el VPS
+    prod_standard = Path("/infocodes/project/release-dashboard-application")
+    if prod_standard.exists():
+        return prod_standard
+
+    # 3. Búsqueda dinámica ascendente desde este fichero (soporta releases/<timestamp>/backend)
+    curr = Path(__file__).resolve().parent
+    for _ in range(6):
+        candidate = curr / "release-dashboard-application"
+        if candidate.is_dir():
+            return candidate
+        if curr.parent == curr:
+            break
+        curr = curr.parent
+
+    # 4. Fallback por defecto relativo
+    return Path(__file__).resolve().parent.parent.parent / "release-dashboard-application"
+
+RELEASE_DASHBOARD_ROOT = find_release_dashboard_root()
 
 # La orquestación "CSV guardado -> conversor -> resultado" vive una sola vez
 # en converters/cli/upload_csv.py (repo release-dashboard-application), para
@@ -193,11 +216,12 @@ try:
     from upload_csv import run_upload  # noqa: E402
     from generate_postmortem_report import generate_report, generate_all_reports  # noqa: E402
     DASHBOARD_INTEGRATION_AVAILABLE = True
-except ImportError:
+except Exception as e:
     run_upload = None
     generate_report = None
     generate_all_reports = None
     DASHBOARD_INTEGRATION_AVAILABLE = False
+    print(f"  [Integración] Aviso: Módulos de Release Dashboard no disponibles ({e})")
 
 print(f"  [Integración] Release Dashboard Root: {RELEASE_DASHBOARD_ROOT} (existe: {RELEASE_DASHBOARD_ROOT.exists()})")
 print(f"  [Integración] Subida CSV & Postmortems: {'OK' if DASHBOARD_INTEGRATION_AVAILABLE else 'NO DISPONIBLE'}")
