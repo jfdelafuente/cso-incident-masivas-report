@@ -31,12 +31,12 @@
       return '<a href="' + item.href + '"' + cls + '>' + item.label + '</a>';
     }).join('');
 
-    var logoSrc = root.dataset.logo || '/dashboards/assets/orange-logo.svg';
+    var logoSrc = root.dataset.logo || 'assets/orange-logo.svg';
 
     root.innerHTML =
       '<div class="mo-topbar" role="banner">' +
         '<a href="/dashboards/portal/" class="mo-topbar-brand" aria-label="Ir al Portal de Fiabilidad">' +
-          '<img src="' + logoSrc + '" onerror="if(this.src!=\'/dashboards/assets/orange-logo.svg\')this.src=\'/dashboards/assets/orange-logo.svg\'" alt="Orange">' +
+          '<img src="' + logoSrc + '" onerror="if(!this.dataset.fallback){this.dataset.fallback=\'1\';this.src=(this.src.indexOf(\'/dashboards/\')!==-1)?\'assets/orange-logo.svg\':\'/dashboards/assets/orange-logo.svg\';}" alt="Orange">' +
         '</a>' +
         '<div class="mo-topbar-sep" aria-hidden="true"></div>' +
         '<span class="mo-topbar-dept">Customer &amp; Service Operations</span>' +
