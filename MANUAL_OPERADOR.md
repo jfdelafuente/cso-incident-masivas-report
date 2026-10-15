@@ -126,15 +126,17 @@ El script `maintenance.sh backup` genera un backup consistente de la base de dat
 
 **Generar un backup manual inmediato:**
 ```bash
-cd /infocodes/project/cso-incident-masivas-report/backend
+cd /infocodes/project/cso-incident-masivas-report/current/backend
 ./maintenance.sh backup
 ```
 
 **Configuración en Cron (Usuario `infocodes`):**
 ```bash
 crontab -e
-# Añadir backup diario a las 02:15 AM:
-15 2 * * * /infocodes/project/cso-incident-masivas-report/backend/maintenance.sh backup >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
+# Backup diario a las 02:00 AM:
+0 2 * * * bash /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh backup >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
+# Rotación semanal de logs los sábados a las 02:10 AM:
+10 2 * * 6 bash /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh rotate-logs >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
 ```
 
 **Listar copias existentes:**
@@ -149,7 +151,7 @@ ls -lht /infocodes/var/backups/cso-incident-masivas-report/
 Para recuperar el estado de `reports.db` a una fecha/hora anterior:
 
 ```bash
-cd /infocodes/project/cso-incident-masivas-report/backend
+cd /infocodes/project/cso-incident-masivas-report/current/backend
 ./maintenance.sh restore
 ```
 
