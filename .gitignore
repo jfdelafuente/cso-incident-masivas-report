@@ -24,4 +24,5 @@ scratch/
 *.whl
 .env
 .env.local
+dist/
 
