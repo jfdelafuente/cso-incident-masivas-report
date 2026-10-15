@@ -18,16 +18,16 @@ Guía completa para desplegar y mantener la aplicación "Automatización de repo
                 Frontend estático│                               │ Proxy pass /api,
              /reportes-incidencias                               │ /healthz, /readyz
                                  ▼                               ▼
-                 ┌───────────────────────────────┐  ┌───────────────────────────────┐
-                 │       [app/ (HTML/JS/CSS)]    │  │   [Backend FastAPI (:8000)]   │
-                 │   - index.html (dashboard)    │  │   - main.py (FastAPI)         │
-                 │   - editor.html (editor deck) │  │   - models.py & schemas.py    │
-                 │   - preview.html (slides)     │  │   - executive_report_generator│
-                 │   - styles.css & branding     │  │   - service.sh / uvicorn      │
-                 └───────────────────────────────┘  └───────────────┬───────────────┘
-                                                                    │
-                                   Persistencia desacoplada en      │
-                                        /infocodes/var/             ▼
+                 ┌───────────────────────────────┐ ┌───────────────────────────────┐
+                 │       [app/ (HTML/JS/CSS)]    │ │   [Backend FastAPI (:8000)]   │
+                 │   - index.html (dashboard)    │ │   - main.py (FastAPI)         │
+                 │   - editor.html (editor deck) │ │   - models.py & schemas.py    │
+                 │   - preview.html (slides)     │ │   - executive_report_generator│
+                 │   - styles.css & branding     │ │   - service.sh / uvicorn      │
+                 └───────────────────────────────┘ └───────────────┬───────────────┘
+                                                                   │
+                                   Persistencia desacoplada en     │
+                                        /infocodes/var/            ▼
                  ┌──────────────────────────────────────────────────────────────────┐
                  │  - SQLite DB: var/data/cso-incident-masivas-report/reports.db    │
                  │  - PPTX Storage: var/storage/executive_pptx/ (compartido)        │
@@ -36,6 +36,30 @@ Guía completa para desplegar y mantener la aplicación "Automatización de repo
                  │  - Logs: /infocodes/logs/cso-incident-masivas-report/            │
                  └──────────────────────────────────────────────────────────────────┘
 ```
+
+### Estructura de Despliegue en el Servidor (Standalone & Releases Atómicas)
+
+El despliegue sigue la misma arquitectura basada en **artefactos standalone inmutables y enlace simbólico (`current`)** empleada en `gestion-problemas-dashboard`:
+
+```text
+/infocodes/project/cso-incident-masivas-report/
+├── current -> releases/20261015_140701   # Symlink atómico a la versión activa
+├── releases/
+│   ├── 20261015_134012/                  # Release anterior (para rollback)
+│   └── 20261015_140701/                  # Release activa (backend/, nginx/, app/)
+├── shared/
+│   ├── venv/                             # Entorno Python virtual persistente
+│   └── .env                              # Configuración de entorno desacoplada
+├── rollback.sh                           # Script para conmutar a la release previa
+├── status.sh                             # Inspección de versión activa y salud
+└── VERSION                               # 2.1.0
+```
+
+> 🌟 **Ventajas del despliegue Standalone**:
+> - **Sin Git en Producción**: No hay repo `.git/` en el servidor, evitando descargas innecesarias y conflictos de merge.
+> - **Artefacto ultraligero**: Se empaqueta en `dist/cso-incident-backend.tar.gz` (aprox. **1.5 MB**), excluyendo tests, mocks, wheels y dev docs.
+> - **Entorno virtual compartido (`shared/venv`)**: Las dependencias no se reinstalan desde cero en cada despliegue, tardando menos de un minuto.
+> - **Rollback instantáneo**: Conmuta el symlink `current` en 1 segundo sin tocar datos persistentes.
 
 ### Relación con Aplicaciones Hermanas
 
@@ -53,59 +77,68 @@ El servidor `AOTLXPRBOA00001` aloja varios servicios compartidos bajo el usuario
 - Python 3.8+ con módulo virtualenv (`venv`).
 - Nginx instalado en `/infocodes/nginx/` con soporte de `conf.d/*.conf`.
 - Acceso SSH para el usuario `infocodes` (puerto 22).
-- Google Chrome headless (necesario únicamente si se utiliza el generador heredado Kaleido).
 
 **En el puesto de desarrollo (Windows):**
 - PowerShell 5.1+ o PowerShell 7+.
 - Cliente OpenSSH (`ssh`, `scp`) configurado en el `PATH`.
 - Git para Windows (`git`).
+- Tar nativo de Windows (`tar.exe`).
 
 ---
 
-## 🚀 Opciones de Despliegue
+## 🚀 Métodos de Despliegue
 
-Dispones de tres métodos de despliegue según el caso de uso:
+### Método Principal: Despliegue Automatizado 1-Clic (PowerShell)
 
-### Opción A: Despliegue en 1 Clic desde Windows (Recomendado)
-
-Desde tu terminal de PowerShell en tu equipo local:
+Desde la raíz del repositorio en Windows:
 
 ```powershell
-# Despliegue estándar: valida git, sincroniza archivos, actualiza backend y Nginx
 powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1
 ```
 
-**Modos avanzados del script de PowerShell:**
+**Flujo automatizado que ejecuta el script:**
+1. **Empaquetado Standalone**: Compila y crea `dist/cso-incident-backend.tar.gz` (~1.5 MB) con solo los ficheros de runtime (`backend/`, scripts de servicio, configuración Nginx, `rollback.sh`, `status.sh`).
+2. **Transferencia Segura**: Sube el tarball vía SCP a `/tmp/cso-incident-backend.tar.gz` en `infocodes@10.132.26.96`.
+3. **Backup Preventivo de BD**: Hace copia inmediata de `/infocodes/var/data/cso-incident-masivas-report/reports.db` antes de cualquier modificación.
+4. **Nueva Release Aislada**: Extrae el contenido en `/infocodes/project/cso-incident-masivas-report/releases/<TIMESTAMP>/`.
+5. **Enlace de Recursos Compartidos**: Symlink de `backend/venv` a `shared/venv` y de `.env` a `shared/.env`.
+6. **Migración de Esquema**: Ejecuta `Base.metadata.create_all()` para aplicar posibles nuevas columnas.
+7. **Sincronización Nginx**: Actualiza `conf.d/cso-incident.conf` y recarga Nginx (`nginx -s reload`).
+8. **Conmutación Atómica de Symlink**: Apunta `current` a la nueva release `releases/<TIMESTAMP>`.
+9. **Reinicio Backend**: Reinicia FastAPI desde la release activa (`current/backend/service.sh restart`).
+10. **Rotación de Releases**: Conserva las últimas 3 versiones liberando espacio de las anteriores.
+11. **Comprobación de Sondas**: Valida HTTP 200 en `/api/health`, `/readyz` y a través de Nginx (`:8081/api/health`).
+
+**Parámetros disponibles:**
 
 | Parámetro | Descripción |
 |---|---|
-| `-VerifyOnly` | Solo ejecuta sondas de salud (`/healthz`, `/readyz`) y verifica procesos sin alterar nada. |
+| *(sin parámetros)* | Despliegue completo (empaquetado, subida, nueva release, symlink atómico y sondas). |
+| `-VerifyOnly` | Solo ejecuta sondas de salud (`/api/health`, `/readyz`) y comprueba el proceso sin alterar nada (~0.8s). |
+| `-Rollback` | Revierte instantáneamente `current` a la release previa y reinicia el servicio. |
 | `-RestartOnly` | Reinicia el servicio backend FastAPI en el servidor remoto sin transferir archivos. |
-| `-Rollback` | Restaura el último backup de la base de datos `reports.db` y reinicia el servicio. |
-| `-SyncFiles` | Sincroniza ficheros estáticos (`app/`, `backend/`, `nginx/`) por SCP sin reiniciar. |
-| `-DryRun` | Muestra los comandos y validaciones que se ejecutarían sin aplicarlos. |
+| `-SkipBuild` | Reutiliza el tarball existente en `dist/` sin reempaquetar. |
+| `-SkipUpload` | Despliega el tarball ya presente en `/tmp/` del servidor remoto. |
+| `-DryRun` | Muestra los comandos y el script bash que se ejecutaría sin aplicar cambios. |
 
 ---
 
-### Opción B: Despliegue Directo en el Servidor Linux (`deploy.sh`)
+### Método en el Servidor: Inspección y Control Manual
 
 Si estás conectado por SSH al servidor (`infocodes@10.132.26.96`):
 
 ```bash
 cd /infocodes/project/cso-incident-masivas-report
-bash deploy.sh
+
+# Ver qué release está activa y comprobar salud:
+./status.sh
+
+# Revertir instantáneamente a la versión anterior:
+./rollback.sh
+
+# Reiniciar backend manualmente:
+./current/backend/service.sh restart
 ```
-
-El script `deploy.sh` realiza automáticamente:
-1. Comprobación y pulling del último commit de Git (`git pull origin main`).
-2. Activación del venv e instalación de dependencias en `backend/`.
-3. Creación y verificación de directorios en `/infocodes/var/` (`data/`, `storage/`, `run/`, `backups/`).
-4. Backup preventivo automático de `reports.db`.
-5. Copia modular de la configuración Nginx (`nginx/conf.d/cso-incident.conf` → `/infocodes/nginx/conf/conf.d/`).
-6. Validación (`nginx -t`) y recarga suave de Nginx (`nginx -s reload`).
-7. Reinicio controlado del servicio backend mediante `backend/service.sh restart`.
-8. Verificación de las sondas de salud (`/healthz` y `/readyz`).
-
 ---
 
 ### Opción C: Despliegue Manual Paso a Paso (Para Troubleshooting)
@@ -263,20 +296,16 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1 -Rollback
 
 **Vía SSH (Linux):**
 ```bash
-# 1. Revertir código a un commit anterior
+# 1. Conmutar al release previo (atómico, instantáneo y seguro)
 cd /infocodes/project/cso-incident-masivas-report
-git log -n 5 --oneline
-git checkout <COMMIT_HASH_ANTERIOR>
+./rollback.sh
 
-# 2. Restaurar base de datos
-cd backend
+# 2. Restaurar base de datos (solo si la BD fue corrompida)
+cd current/backend
 ./maintenance.sh restore
-
-# 3. Reiniciar servicio
-./service.sh restart
 ```
 
 ---
 
 **Última actualización:** Octubre 2026  
-**Versión de despliegue:** 2.0 (Persistencia `/infocodes/var/` y Nginx Modular `conf.d`)
+**Versión de despliegue:** 2.1 (Artefacto Standalone, Releases Atómicas con Symlink y Persistencia `/infocodes/var/`)

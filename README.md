@@ -21,9 +21,14 @@ Frontend en HTML/CSS/JS puro (sin paso de compilación) + backend FastAPI con pe
   ```powershell
   .\scripts\deploy-production.ps1
   ```
-  *(Soporta `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SyncFiles` y `-DryRun`)*.
-- **Despliegue en el Servidor**: ver [`DEPLOYMENT.md`](DEPLOYMENT.md) y [`deploy.sh`](deploy.sh).
-- **Operación del día a día** (arrancar/parar backend, backups, restauración, rotación de logs, chequeo de salud y sondas): ver [`MANUAL_OPERADOR.md`](MANUAL_OPERADOR.md).
+  *(Empaqueta un artefacto standalone inmutable de 1.5 MB, lo despliega en `releases/<TIMESTAMP>/` y activa el symlink atómico `current`)*.
+  *(Soporta `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SkipBuild`, `-SkipUpload` y `-DryRun`)*.
+- **Operación y Verificación en el Servidor**:
+  - `status.sh` — Muestra la release activa y verifica sondas HTTP de salud.
+  - `rollback.sh` — Revierte instantáneamente en 1 segundo a la release anterior.
+- **Guías completas**:
+  - [`DEPLOYMENT.md`](DEPLOYMENT.md) — Guía detallada de la arquitectura standalone, releases y configuración Nginx.
+  - [`MANUAL_OPERADOR.md`](MANUAL_OPERADOR.md) — Operación rutinaria, backups automáticos en caliente, rotación y resolución de incidencias.
 
 ---
 
@@ -37,8 +42,10 @@ Frontend en HTML/CSS/JS puro (sin paso de compilación) + backend FastAPI con pe
   - `maintenance.sh` — Mantenimiento seguro con SQLite Online Backup (`backup`, `restore`, `rotate-logs`, `healthcheck`).
   - `.env.example` — Variables de entorno configurables.
 - `nginx/conf.d/cso-incident.conf` — Configuración modular aislada para Nginx (`/reportes-incidencias/` y `/api`).
-- `deploy.sh` — Script de despliegue en Linux con migración automática de Nginx modular y persistencia en `/infocodes/var/`.
-- `scripts/deploy-production.ps1` — Orquestador de despliegue en 1 clic para PowerShell.
+- `scripts/deploy-production.ps1` — Orquestador de despliegue standalone (empaquetado, subida SCP, symlinks y sondas).
+- `rollback.sh` — Script de rollback atómico para producción.
+- `status.sh` — Script de comprobación de release activa y healthchecks.
+- `VERSION` — Número de versión del proyecto (2.1.0).
 - `scripts/` — Herramientas CLI para volcado e importación de plantillas PowerPoint (`export_legacy_pptx.py`, `import_pptx.py`, `dump_pptx_shapes.py`).
 
 ---

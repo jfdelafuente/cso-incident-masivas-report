@@ -52,12 +52,17 @@ The staging shell has `http_proxy`/`https_proxy` set to a corporate proxy, and `
 Full details in `DEPLOYMENT.md` (manual/reference walkthrough) and `STAGING_DEPLOYMENT.md` (the actual staging flow) — read those before changing deploy behavior. Key facts that aren't obvious from a typical FastAPI+Nginx setup:
 
 - Everything runs as the unprivileged `infocodes` user (uid=2001, no root, no sudo, no systemd) on `10.132.68.85:8081` / `infocodes.si.orange.es` (host `AOTLXPRBOA00001`). Never add `sudo` back into `deploy.sh` or the docs.
-- 1-click automated deployment from Windows is available via `scripts/deploy-production.ps1` (supports `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SyncFiles`, `-DryRun`).
+- 1-click automated deployment from Windows is available via `scripts/deploy-production.ps1` (supports `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SkipBuild`, `-SkipUpload`, `-DryRun`).
 - Nginx is a **self-contained install under `/infocodes/nginx`**, not the OS package: binary at `/infocodes/nginx/sbin/nginx`, main config at `/infocodes/nginx/conf/nginx.conf`, modular site config at `/infocodes/nginx/conf/conf.d/cso-incident.conf`, error log at `/infocodes/nginx/logs/error.log`, access log at `/infocodes/var/log/nginx/infocodes.access.log`. Reload with `/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload` (there is no `nginx` systemd unit to restart).
 - That Nginx instance is modular: `conf/nginx.conf` includes `conf/conf.d/*.conf`. This repository manages `nginx/conf.d/cso-incident.conf` safely without modifying global blocks or impacting sibling apps (`/static`, `/dashboards`, `/data`, `/problemas`, `/api/epsilon/`).
 - Decoupled state under `/infocodes/var/`: SQLite DB (`var/data/cso-incident-masivas-report/reports.db`), executive PPTX files (`var/storage/executive_pptx/`), PID file (`var/run/cso-backend.pid`), and backups (`var/backups/cso-incident-masivas-report/`).
-- App deploy path on the server is `/infocodes/project/cso-incident-masivas-report`.
-- `deploy.sh` automates the whole flow: git clone/pull → venv + deps → DB backup & init → apply modular `nginx/conf.d/cso-incident.conf` (test and reload) → `backend/service.sh restart` → verify health probes and frontend files. Re-running it is how you ship an update; it's idempotent.
+- App deploy path on the server is `/infocodes/project/cso-incident-masivas-report`, organized in an atomic releases pattern identical to `gestion-problemas-dashboard`:
+  - `current -> releases/<TIMESTAMP>` (atomic symlink to active release)
+  - `releases/<TIMESTAMP>/` (immutable code package: `backend/`, `nginx/`, `app/`)
+  - `shared/` (`venv/` shared virtualenv to avoid wheel reinstalls, and `.env`)
+  - `rollback.sh` (switches `current` back to the previous release in 1 second)
+  - `status.sh` (shows active release and runs `/api/health` probe)
+- `scripts/deploy-production.ps1` automates the whole standalone flow: builds `dist/cso-incident-backend.tar.gz` (1.5 MB, excludes `.git`, dev docs, wheels, tests) → transfers to remote `/tmp/` → creates preventive DB backup → unpacks into new `releases/<TIMESTAMP>/` → symlinks `shared/venv` and `shared/.env` → applies modular `nginx/conf.d/cso-incident.conf` (test and reload) → switches symlink `current` → `current/backend/service.sh restart` → rotates old releases keeping 3 → verifies health probes.
 
 ## Data model notes
 

@@ -63,24 +63,28 @@ Desde la raíz del repositorio en tu equipo local:
 powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1
 ```
 
-Este script automatiza de forma segura:
-1. Comprobación del estado local de Git.
-2. Sincronización de ficheros a `/infocodes/project/cso-incident-masivas-report/`.
-3. Verificación de directorios en `/infocodes/var/`.
-4. Backup preventivo automático de la base de datos `reports.db`.
-5. Instalación modular de `cso-incident.conf` en Nginx (`nginx -t` y `nginx -s reload`).
-6. Reinicio del backend (`service.sh restart`).
-7. Comprobación de sondas `/healthz` y `/readyz`.
+Este script automatiza de forma atómica y segura:
+1. Empaquetado standalone en `dist/cso-incident-backend.tar.gz` (1.5 MB, sin `.git` ni tests).
+2. Transferencia segura por SCP a `/tmp/` en el servidor.
+3. Backup preventivo automático de la base de datos `reports.db`.
+4. Extracción en release aislada inmutable: `/infocodes/project/cso-incident-masivas-report/releases/<TIMESTAMP>/`.
+5. Enlace simbólico a los recursos persistentes compartidos (`shared/venv` y `shared/.env`).
+6. Instalación modular de `cso-incident.conf` en Nginx (`nginx -t` y `nginx -s reload`).
+7. Conmutación atómica del enlace simbólico: `current -> releases/<TIMESTAMP>`.
+8. Reinicio del backend (`current/backend/service.sh restart`).
+9. Comprobación de sondas de salud `/api/health` y `/readyz`.
 
 ### Vía Servidor Linux (SSH)
 
 Conectado a la máquina por SSH:
 ```bash
 cd /infocodes/project/cso-incident-masivas-report
-bash deploy.sh
+
+# Inspeccionar versión activa y estado de salud:
+./status.sh
 ```
 
-> 🛡️ **Seguridad Nginx**: Gracias a la arquitectura modular `conf.d/cso-incident.conf`, los despliegues ya no sobreescriben la configuración global de Nginx. Las aplicaciones hermanas (`/problemas`, `/dashboards`, `/api/epsilon/`) quedan totalmente aisladas de cualquier cambio.
+> 🛡️ **Seguridad Nginx y Despliegue Aislado**: Gracias a la arquitectura modular `conf.d/cso-incident.conf` y al despliegue inmutable por releases, no se modifican repositorios Git en caliente ni se altera la configuración global de Nginx. Las aplicaciones hermanas (`/problemas`, `/dashboards`, `/api/epsilon/`) quedan totalmente aisladas de cualquier cambio.
 
 ---
 
@@ -92,27 +96,23 @@ Si un despliegue reciente introduce errores o comportamientos inesperados:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1 -Rollback
 ```
+*(Conmuta instantáneamente `current` a la release previa y reinicia el servicio en ~1s)*.
 
-### Opción Manual en el Servidor (Linux)
+### Opción en el Servidor (Linux)
 
-**1. Revertir el código fuente:**
+**1. Revertir el código/release:**
 ```bash
 cd /infocodes/project/cso-incident-masivas-report
-git log -n 5 --oneline                  # localiza el commit previo estable
-git checkout <hash-commit-estable>
+./rollback.sh
 ```
+El script detectará la release previa en el directorio `releases/`, conmutará el symlink atómico `current` y reiniciará el backend automáticamente.
 
-**2. Revertir los datos (si la base de datos se vio afectada):**
+**2. Revertir los datos (solo si la base de datos se vio afectada):**
 ```bash
-cd /infocodes/project/cso-incident-masivas-report/backend
+cd /infocodes/project/cso-incident-masivas-report/current/backend
 ./maintenance.sh restore
 ```
 El script mostrará la lista de backups disponibles numerados para que elijas el más reciente antes del incidente.
-
-**3. Reiniciar el servicio:**
-```bash
-./service.sh restart
-```
 
 ---
 

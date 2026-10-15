@@ -7,7 +7,7 @@ Para tareas de operación diaria, copias de seguridad y troubleshooting ver [`MA
 
 ---
 
-## ⚡ Método 1: Despliegue en 1 Clic desde Windows (Recomendado)
+## ⚡ Método 1: Despliegue Automatizado 1-Clic desde Windows (Recomendado)
 
 Desde la consola PowerShell de tu equipo local:
 
@@ -15,39 +15,41 @@ Desde la consola PowerShell de tu equipo local:
 powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1
 ```
 
-Este script:
-1. Comprueba el estado de Git local y remoto.
-2. Sincroniza los ficheros necesarios al servidor (`app/`, `backend/`, `nginx/`).
-3. Asegura la estructura persistente en `/infocodes/var/`.
-4. Realiza backup automático de la base de datos `reports.db`.
-5. Despliega la configuración modular de Nginx en `conf.d/cso-incident.conf` (sin tocar otras aplicaciones como `/problemas` o `/dashboards`).
-6. Reinicia el backend FastAPI (`service.sh restart`).
-7. Valida las sondas de observabilidad `/healthz` y `/readyz`.
+Este script ejecuta de principio a fin:
+1. **Empaquetado Standalone**: Compila `dist/cso-incident-backend.tar.gz` (~1.5 MB) omitiendo `.git`, tests y dependencias de desarrollo.
+2. **Transferencia**: Sube el tarball vía SCP a `/tmp/` en el servidor `10.132.26.96`.
+3. **Backup Preventivo**: Genera copia de seguridad de `reports.db` en `/infocodes/var/backups/`.
+4. **Nueva Release Aislada**: Desempaqueta en `releases/<TIMESTAMP>/` y enlaza el virtualenv persistente `shared/venv`.
+5. **Nginx Modular**: Sincroniza `conf.d/cso-incident.conf` y recarga Nginx sin alterar otras aplicaciones.
+6. **Switch Atómico de Versión**: Conmuta instantáneamente el symlink `current -> releases/<TIMESTAMP>`.
+7. **Reinicio Backend**: Reinicia FastAPI y valida las sondas de salud (`/api/health`, `/readyz`).
 
 ---
 
-## 🐧 Método 2: Despliegue Directo en Servidor Linux (SSH)
+## 🐧 Método 2: Control y Verificación en el Servidor Linux (SSH)
 
-Conectado a la máquina vía SSH:
+Conectado a la máquina vía SSH (`ssh infocodes@10.132.26.96`):
 
 ```bash
 cd /infocodes/project/cso-incident-masivas-report
-bash deploy.sh
-```
 
-El script `deploy.sh` es totalmente idempotente y seguro:
-- Hace `git pull` de la rama `main`.
-- Actualiza dependencias de Python dentro del virtualenv.
-- Aplica el bloque modular `nginx/conf.d/cso-incident.conf` y valida con `nginx -t` antes de recargar.
-- Reinicia el backend FastAPI y comprueba el healthcheck.
+# Ver release activa y estado de salud:
+./status.sh
+
+# Revertir a la versión anterior en 1 segundo:
+./rollback.sh
+
+# Reiniciar backend manualmente:
+./current/backend/service.sh restart
+```
 
 ---
 
 ## 🧪 Checklist de Validación Rápida
 
 ### 1. Dashboard Web
-- [ ] Accede a: **http://infocodes.si.orange.es:8081/reportes-incidencias**
-- [ ] La página carga `index.html` con la lista de informes de incidencias.
+- [ ] Accede a: **http://10.132.68.85:8081/dashboards/reportes-incidencias/**
+- [ ] La página carga con la lista de informes de incidencias.
 - [ ] Los filtros de estado y semanas funcionan sin errores de JavaScript en consola.
 
 ### 2. Editor y Exportaciones
@@ -61,14 +63,15 @@ El script `deploy.sh` es totalmente idempotente y seguro:
 
 ---
 
-## 🛟 Rollback de Emergencia
+## 🛟 Rollback Instantáneo de Emergencia
 
 Si se requiere revertir el despliegue a una versión previa:
 
 ```powershell
-# Desde Windows:
+# Desde Windows (1 clic):
 powershell -ExecutionPolicy Bypass -File scripts\deploy-production.ps1 -Rollback
 
-# O desde Linux:
-cd /infocodes/project/cso-incident-masivas-report/backend && ./maintenance.sh restore
+# O directamente desde el servidor:
+cd /infocodes/project/cso-incident-masivas-report && ./rollback.sh
 ```
+
