@@ -162,13 +162,12 @@ else
     exit 1
 fi
 
-# 6. Verificar frontend
-log_info "Paso 6: Verificar frontend"
-if [ -f "$FRONTEND_PATH/index.html" ]; then
-    log_success "Frontend en: $FRONTEND_PATH"
+# 6. Verificar salud de la API backend
+log_info "Paso 6: Verificar salud de la API backend"
+if curl -s "http://127.0.0.1:$BACKEND_PORT/api/health" | grep -q "status"; then
+    log_success "API backend respondiendo correctamente en puerto $BACKEND_PORT (/api/health)"
 else
-    log_error "Frontend no encontrado en: $FRONTEND_PATH"
-    exit 1
+    log_warn "API backend en puerto $BACKEND_PORT aún inicializándose o curl no disponible."
 fi
 
 # 7. Resumen
@@ -178,13 +177,13 @@ echo -e "${GREEN}✨ ¡Despliegue completado exitosamente!${NC}"
 echo "=================================================="
 echo ""
 echo "📍 Ubicaciones:"
-echo "   Frontend: $FRONTEND_PATH"
-echo "   Backend:  $DEPLOY_PATH/backend"
+echo "   Backend:    $DEPLOY_PATH/backend"
 echo "   Base datos: ${ACTIVE_DB:-/infocodes/var/data/cso-incident-masivas-report/reports.db}"
+echo "   Frontend:   Centralizado en release-dashboard-application (/dashboards/reportes-incidencias/)"
 echo ""
 echo "🌐 Acceso:"
-echo "   URL: http://10.132.68.85:8081/reportes-incidencias"
-echo "   API: http://10.132.68.85:8081/api"
+echo "   Dashboard:  http://10.132.68.85:8081/dashboards/reportes-incidencias/"
+echo "   API:        http://10.132.68.85:8081/api"
 echo ""
 echo "📊 Monitoreo:"
 echo "   Logs backend: tail -f $LOG_DIR/backend.log"

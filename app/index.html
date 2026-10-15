@@ -1,653 +1,127 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reportes de Incidencias — Orange</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/topbar.css">
-<link rel="stylesheet" href="assets/theme.css">
-<link rel="stylesheet" href="assets/ui-feedback.css">
-<style>
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; font-family: "Inter", system-ui, sans-serif; background: #F7F6F4; }
-body { color: #26241F; }
-
-.container { max-width: 1200px; margin: 0 auto; padding: 20px 20px 36px; }
-
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #DEDAD3;
-  flex-wrap: wrap;
-}
-
-.title h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: #1A1815; }
-.title p { margin: 2px 0 0; font-size: 12px; color: #8A857C; }
-
-.btn {
-  padding: 7px 14px;
-  border: none;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #FF7900;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(255, 121, 0, 0.15);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #E56D00;
-  box-shadow: 0 4px 12px rgba(255, 121, 0, 0.25);
-  transform: translateY(-1px);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(255, 121, 0, 0.15);
-}
-
-.btn-secondary {
-  background: #fff;
-  color: #26241F;
-  border: 1px solid #DEDAD3;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #F7F6F4;
-  border-color: #B8B2A9;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.btn-secondary:active:not(:disabled) {
-  background: #EFEDE9;
-}
-
-.btn-success {
-  background: #1D8754;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(29, 135, 84, 0.15);
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #156641;
-  box-shadow: 0 4px 12px rgba(29, 135, 84, 0.25);
-  transform: translateY(-1px);
-}
-
-.btn-success:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(29, 135, 84, 0.15);
-}
-
-.btn-danger {
-  background: #D43A2F;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(212, 58, 47, 0.15);
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #B82D27;
-  box-shadow: 0 4px 12px rgba(212, 58, 47, 0.25);
-  transform: translateY(-1px);
-}
-
-.btn-danger:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(212, 58, 47, 0.15);
-}
-
-.btn-small {
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.controls {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.reports-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.reports-grid + .reports-section-title {
-  margin-top: 36px;
-}
-
-.reports-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8A857C;
-  margin: 0 0 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #DEDAD3;
-}
-
-.reports-table-controls {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.reports-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #DEDAD3;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.reports-table th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #8A857C;
-  padding: 12px 16px;
-  background: #F7F6F4;
-  border-bottom: 1px solid #DEDAD3;
-  white-space: nowrap;
-}
-
-.reports-table td {
-  padding: 12px 16px;
-  font-size: 13px;
-  color: #26241F;
-  border-bottom: 1px solid #EFEDE9;
-  vertical-align: middle;
-}
-
-.reports-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.reports-table tbody tr:hover {
-  background: #FAFAF9;
-}
-
-.reports-table td.report-id {
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.reports-table .table-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.reports-table .table-actions .btn-small {
-  padding: 6px 10px;
-}
-
-.reports-table .action-select {
-  width: auto;
-  min-width: 68px;
-  padding: 4px 20px 4px 8px;
-  font-size: 10px;
-  background-position: right 6px center;
-}
-
-.reports-table .status-badge {
-  font-size: 10px;
-  padding: 3px 8px;
-}
-
-.report-card {
-  background: #fff;
-  border: 1px solid #DEDAD3;
-  border-radius: 12px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.report-card.current-week {
-  border: 2px solid #FF7900;
-  box-shadow: 0 2px 10px rgba(255, 121, 0, 0.12);
-}
-
-.report-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transform: translateY(-2px);
-}
-
-.report-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  margin-bottom: 16px;
-}
-
-.report-id {
-  font-size: 16px;
-  font-weight: 700;
-  color: #26241F;
-}
-
-.status-badge {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-draft { background: #FFF1E6; color: #FF7900; }
-.status-reviewed { background: #E6F3FF; color: #0066CC; }
-.status-published { background: #E6F5EA; color: #1D8754; }
-
-select.status-badge {
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.status-filter {
-  padding: 10px 14px;
-  border: 1px solid #DEDAD3;
-  border-radius: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  background: #fff;
-  color: #26241F;
-  cursor: pointer;
-}
-
-.no-results {
-  text-align: center;
-  padding: 60px 20px;
-  color: #8A857C;
-}
-
-.report-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: #5C5852;
-}
-
-.report-meta strong { color: #26241F; }
-
-.report-incidences {
-  padding: 12px;
-  background: #F7F6F4;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: #5C5852;
-}
-
-.report-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.action-row-primary {
-  display: flex;
-  gap: 8px;
-}
-
-.action-row-primary .btn {
-  padding: 8px 12px;
-  font-size: 12px;
-  justify-content: center;
-}
-
-.action-row-primary .btn-primary {
-  flex: none;
-}
-
-.action-row-primary .btn-success {
-  flex: 1;
-}
-
-.action-select {
-  width: 100%;
-  padding: 6px 26px 6px 10px;
-  border: 1px solid #DEDAD3;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  background-color: #fff;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="%235C5852" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  color: #26241F;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  transition: all 0.2s ease;
-}
-
-.action-select:hover {
-  background-color: #F7F6F4;
-  border-color: #B8B2A9;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.action-select:focus {
-  outline: none;
-  border-color: #FF7900;
-  box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.15);
-}
-
-.action-select.danger {
-  border-color: #F3C9C5;
-  color: #D43A2F;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="%23D43A2F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
-}
-
-.action-select.danger:hover {
-  background-color: #FDEDEC;
-  border-color: #D43A2F;
-  box-shadow: 0 2px 6px rgba(212, 58, 47, 0.15);
-}
-
-.action-select.danger:focus {
-  border-color: #D43A2F;
-  box-shadow: 0 0 0 3px rgba(212, 58, 47, 0.15);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.empty-state h2 { font-size: 24px; margin-bottom: 10px; }
-.empty-state p { color: #8A857C; margin-bottom: 30px; }
-
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal.active { display: flex; }
-
-.modal-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 30px;
-  max-width: 500px;
-  width: 90%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.modal-header h2 { margin: 0; }
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #8A857C;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #8A857C;
-  margin-bottom: 6px;
-}
-
-.form-group input, .form-group select, .form-group textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #DEDAD3;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-}
-
-.loading { opacity: 0.6; pointer-events: none; }
-
-.error { color: #D43A2F; font-size: 13px; }
-.success { color: #1D8754; font-size: 13px; }
-/* Loading Spinner State */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 50px 20px;
-  color: #8A857C;
-  gap: 14px;
-  font-size: 14px;
-  font-weight: 500;
-}
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #DEDAD3;
-  border-top-color: #FF7900;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Current Week Badge & Placeholder */
-.badge-current-week {
-  background: #FF7900;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.current-week-placeholder {
-  border: 2px dashed #FF7900;
-  background: #FFFBF7;
-  padding: 20px 24px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.current-week-placeholder .placeholder-badge {
-  display: inline-block;
-  background: #FFF1E6;
-  color: #FF7900;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reportes de Incidencias — Redirección a Release Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #F5F3F0;
+      color: #0C0B09;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1.5px solid #DEDAD3;
+      border-radius: 14px;
+      padding: 36px 40px;
+      max-width: 580px;
+      width: 90%;
+      box-shadow: 0 4px 20px rgba(12, 11, 9, 0.06);
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #FFF4E8;
+      color: #C95600;
+      border: 1px solid #FFE0B2;
+      margin-bottom: 16px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      font-weight: 800;
+      color: #0C0B09;
+    }
+    p {
+      margin: 0 0 20px;
+      font-size: 14px;
+      color: #4A4640;
+      line-height: 1.55;
+    }
+    .code-box {
+      background: #1A1815;
+      color: #FF7900;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      text-align: left;
+      margin-bottom: 24px;
+      word-break: break-all;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #FF7900;
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .btn:hover {
+      background: #E66A00;
+      transform: translateY(-1px);
+    }
+  </style>
+  <script>
+    // Redirección automática si se accede vía Nginx en producción o proxy local
+    (function () {
+      var origin = window.location.origin;
+      var targetPath = '/dashboards/reportes-incidencias/';
+      // Si estamos en el puerto 8081 (Nginx VPS) o en 8089 (serve_app local)
+      if (window.location.port === '8081' || window.location.port === '8089') {
+        window.location.replace(origin + targetPath);
+      }
+    })();
+  </script>
 </head>
 <body>
-
-<!-- Orange Top Bar (inyectada por assets/topbar.js) -->
-<div id="mo-topbar-root" data-active="reportes-incidencias" data-logo="assets/orange-logo.svg"></div>
-
-<div class="container">
-
-  <header>
-    <div class="title">
-      <h1>Reportes de Incidencias</h1>
-      <p>Gestión semanal IT + RED</p>
+  <div class="card">
+    <div class="badge">Migración Arquitectural</div>
+    <h1>Frontend Consolidado</h1>
+    <p>
+      La interfaz oficial de <strong>Reportes de Incidencias</strong> ha sido migrada e integrada en 
+      <strong>Release Dashboard Application</strong> para compartir la barra superior unificada, 
+      el portal hub y el catálogo de dashboards.
+    </p>
+    <div class="code-box">
+      Ubicación: release-dashboard-application/dashboards/reportes-incidencias/
     </div>
-    <div class="controls">
-      <button class="btn btn-primary" id="btnNewReport">+ Nuevo Informe</button>
-      <button class="btn btn-secondary" id="btnImportReport">Importar JSON</button>
+    <div>
+      <a href="/dashboards/reportes-incidencias/" class="btn" id="redirectBtn">
+        <span>Ir a Reportes de Incidencias</span>
+        <span aria-hidden="true">→</span>
+      </a>
     </div>
-  </header>
-
-  <!-- Estado de Carga -->
-  <div id="loadingState" class="loading-state">
-    <div class="spinner"></div>
-    <p>Cargando informes de incidencias...</p>
   </div>
-
-  <div id="reportsList"></div>
-
-  <div id="emptyState" class="empty-state" style="display:none;">
-    <h2>No hay informes</h2>
-    <p>Crea el primer informe de la semana</p>
-    <button class="btn btn-primary" id="btnNewReportEmpty">+ Nuevo Informe</button>
-  </div>
-
-</div>
-
-<!-- Modal: Nuevo/Editar Informe -->
-<div id="reportModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2 id="modalTitle">Nuevo Informe</h2>
-      <button class="close-btn" id="closeModal">&times;</button>
-    </div>
-    <form id="reportForm">
-      <div class="form-group">
-        <label>Año</label>
-        <input type="number" id="formYear" placeholder="2026" required>
-      </div>
-      <div class="form-group">
-        <label>Semana</label>
-        <input type="number" id="formWeek" placeholder="26" min="1" max="53" required>
-      </div>
-      <div class="form-group">
-        <label>Rango de fechas</label>
-        <input type="text" id="formRange" placeholder="12 – 18 de octubre 2026" required>
-      </div>
-      <div class="form-group">
-        <label>Departamento</label>
-        <input type="text" id="formDept" placeholder="Customer & Service Operations" required>
-      </div>
-      <div class="form-group">
-        <label>Estado</label>
-        <select id="formStatus">
-          <option value="draft">Borrador</option>
-          <option value="reviewed">Revisado</option>
-          <option value="published">Publicado</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Notas</label>
-        <textarea id="formNotes" placeholder="Notas adicionales..."></textarea>
-      </div>
-      <div id="formError" class="error" style="display:none;"></div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" id="cancelBtn">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Modal: Duplicar Informe -->
-<div id="duplicateModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>Duplicar Informe</h2>
-      <button class="close-btn" id="closeDuplicateModal">&times;</button>
-    </div>
-    <p id="duplicateInfo"></p>
-    <form id="duplicateForm">
-      <div class="form-group">
-        <label>Nueva Semana</label>
-        <input type="number" id="duplicateWeek" placeholder="27" min="1" max="53" required>
-      </div>
-      <div id="duplicateError" class="error" style="display:none;"></div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" id="cancelDuplicateBtn">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Duplicar</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<input type="file" id="fileInput" accept=".json" style="display:none;">
-
-<script src="assets/vendor/pptxgen.bundle.js"></script>
-<script src="assets/vendor/html2pdf.bundle.min.js"></script>
-<script src="assets/ui-feedback.js"></script>
-<script src="utils/date.js?v=2"></script>
-<script src="utils/formatters.js"></script>
-<script src="api-client.js"></script>
-<script src="report-render.js"></script>
-<script src="home.js?v=3"></script>
-<script src="assets/topbar.js?v=2" defer></script>
-
+  <script>
+    // En caso de estar en localhost:8080 (servidor estático antiguo), apuntar al puerto 8081 / 8089
+    var btn = document.getElementById('redirectBtn');
+    if (window.location.port === '8080') {
+      btn.href = 'http://' + window.location.hostname + ':8081/dashboards/reportes-incidencias/';
+    }
+  </script>
 </body>
 </html>
