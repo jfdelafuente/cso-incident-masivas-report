@@ -1,0 +1,119 @@
+/**
+ * Orange Corporate Design Tokens & Common Theme Styles
+ * CSO Incidencias Masivas Report
+ */
+
+:root {
+  /* Brand Colors */
+  --orange-primary: #FF7900;
+  --orange-hover: #E56D00;
+  --orange-active: #CC6200;
+  --orange-light: #FFF1E6;
+  --orange-subtle: #FFFBF7;
+
+  /* Neutral Text Colors */
+  --color-text-main: #1A1815;
+  --color-text-body: #26241F;
+  --color-text-muted: #8A857C;
+  --color-text-light: #B8B2A9;
+  --color-text-inverse: #FFFFFF;
+
+  /* Borders */
+  --color-border: #DEDAD3;
+  --color-border-light: #EFEDE9;
+  --color-border-dark: #3C3934;
+
+  /* Backgrounds */
+  --color-bg-page: #F7F6F4;
+  --color-bg-card: #FFFFFF;
+  --color-bg-dark: #1A1815;
+  --color-bg-dark-surface: #26241F;
+  --color-bg-dark-card: #2A2723;
+
+  /* Semantic Feedback */
+  --color-success: #1D8754;
+  --color-success-hover: #156641;
+  --color-danger: #D43A2F;
+  --color-danger-hover: #B82D27;
+  --color-warning: #FFC107;
+  --color-info: #0D6EFD;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Roboto Mono', Menlo, Monaco, Consolas, monospace;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-orange: 0 2px 8px rgba(255, 121, 0, 0.18);
+  --shadow-orange-lg: 0 4px 14px rgba(255, 121, 0, 0.28);
+}
+
+/* Base Form Control Focus State */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--orange-primary) !important;
+  box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.18) !important;
+}
+
+/* Common Status Badges */
+.badge-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-status.status-draft {
+  background: #FFF1E6;
+  color: #D35400;
+}
+
+.badge-status.status-reviewed {
+  background: #E8F4FD;
+  color: #0B69A3;
+}
+
+.badge-status.status-published {
+  background: #EAF7ED;
+  color: #1E7E34;
+}
+
+/* Incomplete/Warning Badge */
+.badge-warning-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #FFF3CD;
+  color: #856404;
+  border: 1px solid #FFEEBA;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: help;
+}
+
+/* Keyboard Shortcut Hint */
+.kbd-hint {
+  display: inline-block;
+  padding: 2px 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: #EAE8E4;
+  border: 1px solid #D2CEC8;
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.1);
+}
+
