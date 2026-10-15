@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/topbar.css">
+<link rel="stylesheet" href="assets/ui-feedback.css">
 <style>
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; font-family: "Inter", system-ui, sans-serif; background: #F7F6F4; }
@@ -473,6 +474,136 @@ select.status-badge {
 
 .error { color: #D43A2F; font-size: 13px; }
 .success { color: #1D8754; font-size: 13px; }
+
+/* KPI Cards Bar */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: #fff;
+  border: 1px solid #DEDAD3;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #DEDAD3;
+}
+.kpi-card.accent-orange::before { background: #FF7900; }
+.kpi-card.accent-red::before { background: #D43A2F; }
+.kpi-card.accent-blue::before { background: #0066CC; }
+.kpi-card.accent-green::before { background: #1D8754; }
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8A857C;
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #1A1815;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.kpi-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: #5C5852;
+}
+
+/* Search and Filter Bar */
+.search-filter-bar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.search-box {
+  flex: 1;
+  min-width: 280px;
+  position: relative;
+}
+.search-box input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid #DEDAD3;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-family: inherit;
+  background: #fff;
+  color: #26241F;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.search-box input:focus {
+  border-color: #FF7900;
+  box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.15);
+  outline: none;
+}
+.search-box .search-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8A857C;
+  font-size: 14px;
+  pointer-events: none;
+}
+.search-count {
+  font-size: 12.5px;
+  color: #8A857C;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Loading Spinner State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 20px;
+  color: #8A857C;
+  gap: 14px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #DEDAD3;
+  border-top-color: #FF7900;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>
 </head>
 <body>
@@ -493,9 +624,48 @@ select.status-badge {
     </div>
   </header>
 
+  <!-- Tarjetas KPI Resumen -->
+  <div id="kpiSection" class="kpi-grid" style="display:none;">
+    <div class="kpi-card accent-orange">
+      <span class="kpi-label">Semana Activa</span>
+      <div class="kpi-value" id="kpiWeek">-</div>
+      <span class="kpi-sub" id="kpiStatus">-</span>
+    </div>
+    <div class="kpi-card accent-blue">
+      <span class="kpi-label">Incidencias Totales</span>
+      <div class="kpi-value" id="kpiIncTotal">0</div>
+      <span class="kpi-sub" id="kpiIncAreaBreakdown">0 IT · 0 RED</span>
+    </div>
+    <div class="kpi-card accent-red">
+      <span class="kpi-label">Críticas (SL1 / Emerg.)</span>
+      <div class="kpi-value" id="kpiCriticalCount">0</div>
+      <span class="kpi-sub" id="kpiCriticalBreakdown">Mayor impacto</span>
+    </div>
+    <div class="kpi-card accent-green">
+      <span class="kpi-label">Atención Especial</span>
+      <div class="kpi-value" id="kpiSpecialCount">0</div>
+      <span class="kpi-sub" id="kpiSpecialBreakdown">0 Ministerio · 0 Plataforma</span>
+    </div>
+  </div>
+
+  <!-- Barra de Búsqueda y Filtro Rápido -->
+  <div class="search-filter-bar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="search" id="reportSearchInput" placeholder="Buscar por semana (ej. W41), fecha, ticket o título..." autocomplete="off">
+    </div>
+    <span id="searchCountBadge" class="search-count"></span>
+  </div>
+
+  <!-- Estado de Carga -->
+  <div id="loadingState" class="loading-state">
+    <div class="spinner"></div>
+    <p>Cargando informes de incidencias...</p>
+  </div>
+
   <div id="reportsList"></div>
 
-  <div id="emptyState" class="empty-state">
+  <div id="emptyState" class="empty-state" style="display:none;">
     <h2>No hay informes</h2>
     <p>Crea el primer informe de la semana</p>
     <button class="btn btn-primary" id="btnNewReportEmpty">+ Nuevo Informe</button>
@@ -572,8 +742,9 @@ select.status-badge {
 
 <input type="file" id="fileInput" accept=".json" style="display:none;">
 
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="assets/vendor/pptxgen.bundle.js"></script>
+<script src="assets/vendor/html2pdf.bundle.min.js"></script>
+<script src="assets/ui-feedback.js"></script>
 <script src="api-client.js"></script>
 <script src="report-render.js"></script>
 <script src="home.js"></script>

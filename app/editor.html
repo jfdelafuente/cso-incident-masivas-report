@@ -7,8 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="assets/vendor/pptxgen.bundle.js"></script>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="assets/ui-feedback.css">
 <style>
 .editor-header { background: #1a1815; padding: 12px 20px; border-bottom: 1px solid #3C3934; display: flex; align-items: center; gap: 12px; font-size: 12px; }
 .editor-header a { color: #FF7900; text-decoration: none; cursor: pointer; font-weight: 600; }
@@ -29,6 +30,10 @@
       <option value="reviewed">Reviewed</option>
       <option value="published">Published</option>
     </select>
+    <div id="saveStatusBadge" class="save-status-badge" style="margin-left:auto; font-size:11.5px; font-weight:600; padding:4px 12px; border-radius:20px; background:#2A2723; color:#A8A29E; display:inline-flex; align-items:center; gap:7px; border:1px solid #3C3934;">
+      <span id="saveStatusDot" style="width:8px; height:8px; border-radius:50%; background:#28A745;"></span>
+      <span id="saveStatusText">Guardado</span>
+    </div>
   </div>
 
   <div style="display:flex; flex:1; overflow:hidden;">
@@ -81,6 +86,7 @@
   </div>
 </div>
 
+<script src="assets/ui-feedback.js"></script>
 <script src="api-client.js"></script>
 <script src="report-render.js"></script>
 <script src="app.js"></script>

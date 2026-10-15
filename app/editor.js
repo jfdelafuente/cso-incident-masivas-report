@@ -127,16 +127,50 @@ const ReportEditor = {
       }
 
       console.log(`✓ Informe ${reportId} cargado (${(report.incidents || []).length} incidencias)`);
+      this.setSaveStatus('saved');
     } catch (error) {
       console.error('Error cargando informe:', error);
-      alert('Error al cargar el informe: ' + error.message);
+      if (window.Toast) Toast.error('Error al cargar el informe: ' + error.message);
+      else alert('Error al cargar el informe: ' + error.message);
+    }
+  },
+
+  setSaveStatus(state, msg) {
+    const dot = document.getElementById('saveStatusDot');
+    const text = document.getElementById('saveStatusText');
+    const badge = document.getElementById('saveStatusBadge');
+    if (!dot || !text || !badge) return;
+
+    if (state === 'saving') {
+      dot.style.background = '#FF7900';
+      dot.style.boxShadow = '0 0 6px rgba(255,121,0,0.6)';
+      text.textContent = 'Guardando...';
+      badge.style.borderColor = 'rgba(255,121,0,0.4)';
+    } else if (state === 'saved') {
+      dot.style.background = '#28A745';
+      dot.style.boxShadow = 'none';
+      const timeStr = msg || new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      text.textContent = `Guardado (${timeStr})`;
+      badge.style.borderColor = '#3C3934';
+    } else if (state === 'error') {
+      dot.style.background = '#D43A2F';
+      dot.style.boxShadow = '0 0 6px rgba(212,58,47,0.6)';
+      text.textContent = msg || 'Error al guardar';
+      badge.style.borderColor = 'rgba(212,58,47,0.5)';
+    } else if (state === 'pending') {
+      dot.style.background = '#FFC107';
+      dot.style.boxShadow = 'none';
+      text.textContent = 'Guardando cambios...';
+      badge.style.borderColor = 'rgba(255,193,7,0.4)';
     }
   },
 
   initializeNew() {
     this.currentReportId = null;
     document.getElementById('reportTitle').textContent = 'Nuevo informe';
-    document.getElementById('reportStatusBadge').style.display = 'none';
+    const badge = document.getElementById('reportStatusBadge');
+    if (badge) badge.style.display = 'none';
+    this.setSaveStatus('saved', 'Nuevo');
   },
 
   setupAutoSave() {
@@ -158,13 +192,15 @@ const ReportEditor = {
 
   scheduleAutoSave() {
     clearTimeout(this.autoSaveTimer);
-    this.autoSaveTimer = setTimeout(() => this.autoSave(), 2000);
+    this.setSaveStatus('pending');
+    this.autoSaveTimer = setTimeout(() => this.autoSave(), 1500);
   },
 
   async autoSave() {
     if (!this.isDirty || !this.currentReportId) return;
 
     try {
+      this.setSaveStatus('saving');
       const update = {
         range: document.getElementById('metaRange')?.value || '',
         dept: document.getElementById('metaDept')?.value || '',
@@ -173,9 +209,12 @@ const ReportEditor = {
 
       await ApiClient.updateReport(this.currentReportId, update);
       this.isDirty = false;
+      this.setSaveStatus('saved');
       console.log('✓ Informe guardado automáticamente');
     } catch (error) {
       console.error('Error al guardar automáticamente:', error);
+      this.setSaveStatus('error');
+      if (window.Toast) Toast.error('Error al autoguardar: ' + error.message);
     }
   },
 
@@ -183,6 +222,7 @@ const ReportEditor = {
     if (!this.currentReportId) {
       // Create new report
       try {
+        this.setSaveStatus('saving');
         const report = {
           year: parseInt(document.getElementById('metaYear').value),
           week: parseInt(document.getElementById('metaWeek').value),
@@ -209,30 +249,38 @@ const ReportEditor = {
           statusSelect.style.display = 'block';
         }
 
-        alert('✓ Informe creado exitosamente');
+        this.setSaveStatus('saved');
+        if (window.Toast) Toast.success('Informe creado exitosamente');
+        else alert('✓ Informe creado exitosamente');
         this.isDirty = false;
       } catch (error) {
-        alert('Error al crear el informe: ' + error.message);
+        this.setSaveStatus('error');
+        if (window.Toast) Toast.error('Error al crear el informe: ' + error.message);
+        else alert('Error al crear el informe: ' + error.message);
       }
     } else {
       // Update existing
       this.isDirty = true;
       await this.autoSave();
-      alert('✓ Informe guardado');
+      if (window.Toast) Toast.success('Informe guardado correctamente');
+      else alert('✓ Informe guardado');
     }
   },
 
   async updateStatus(newStatus) {
     if (!this.currentReportId) {
-      alert('Primero debes crear el informe');
+      if (window.Toast) Toast.warning('Primero debes crear el informe');
+      else alert('Primero debes crear el informe');
       return;
     }
 
     try {
       await ApiClient.updateReport(this.currentReportId, { status: newStatus });
+      if (window.Toast) Toast.success(`Estado actualizado a ${newStatus}`);
       console.log(`✓ Estado cambiado a ${newStatus}`);
     } catch (error) {
-      alert('Error al cambiar estado: ' + error.message);
+      if (window.Toast) Toast.error('Error al cambiar estado: ' + error.message);
+      else alert('Error al cambiar estado: ' + error.message);
       // Recargar para restaurar el estado anterior
       const statusSelect = document.getElementById('reportStatusSelect');
       if (statusSelect) {

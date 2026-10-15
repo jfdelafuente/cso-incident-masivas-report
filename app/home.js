@@ -14,6 +14,7 @@ const HomePage = {
   reports: [],
   currentEditId: null,
   statusFilter: 'all',
+  searchQuery: '',
 
   async init() {
     console.log('Inicializando HomePage...');
@@ -22,7 +23,11 @@ const HomePage = {
     const health = await ApiClient.healthCheck();
     if (!health) {
       const backendUrl = ApiClient.baseURL || `${window.location.origin}/api`;
-      alert(`⚠️ No se puede conectar al backend. Asegúrate de que el servidor FastAPI está accesible en ${backendUrl}`);
+      if (window.Toast) {
+        Toast.warning(`No se puede conectar al backend. Asegúrate de que el servidor FastAPI está accesible en ${backendUrl}`, 7000);
+      } else {
+        alert(`⚠️ No se puede conectar al backend. Asegúrate de que el servidor FastAPI está accesible en ${backendUrl}`);
+      }
     }
 
     this.setupEventListeners();
@@ -43,6 +48,14 @@ const HomePage = {
     document.getElementById('duplicateForm').addEventListener('submit', (e) => this.handleDuplicateSubmit(e));
 
     document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
+
+    const searchInput = document.getElementById('reportSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.searchQuery = e.target.value.trim().toLowerCase();
+        this.renderReports();
+      });
+    }
   },
 
   setStatusFilter(value) {
@@ -51,13 +64,86 @@ const HomePage = {
   },
 
   async loadReports() {
+    const loadingEl = document.getElementById('loadingState');
+    const listEl = document.getElementById('reportsList');
+    const emptyEl = document.getElementById('emptyState');
+    const kpiEl = document.getElementById('kpiSection');
+
+    if (loadingEl) loadingEl.style.display = 'flex';
+    if (listEl) listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+
     try {
       this.reports = await ApiClient.listReports();
+      if (loadingEl) loadingEl.style.display = 'none';
+      this.renderKPIs();
       this.renderReports();
     } catch (error) {
+      if (loadingEl) loadingEl.style.display = 'none';
       console.error('Error loading reports:', error);
-      alert('Error al cargar los informes: ' + error.message);
+      if (window.Toast) {
+        Toast.error('Error al cargar los informes: ' + error.message);
+      } else {
+        alert('Error al cargar los informes: ' + error.message);
+      }
     }
+  },
+
+  renderKPIs() {
+    const kpiSection = document.getElementById('kpiSection');
+    if (!kpiSection) return;
+
+    if (!this.reports || this.reports.length === 0) {
+      kpiSection.style.display = 'none';
+      return;
+    }
+
+    const { year: curYear, week: curWeek } = this.currentYearWeek();
+    let active = this.reports.find(r => r.year === curYear && r.week === curWeek);
+    if (!active && this.reports.length > 0) {
+      active = this.reports[0];
+    }
+
+    if (!active) {
+      kpiSection.style.display = 'none';
+      return;
+    }
+
+    kpiSection.style.display = 'grid';
+
+    // Week & Status
+    const weekEl = document.getElementById('kpiWeek');
+    if (weekEl) weekEl.textContent = `S${active.week} · ${active.year}`;
+
+    const statusEl = document.getElementById('kpiStatus');
+    if (statusEl) {
+      const statusLabels = { draft: 'Borrador', reviewed: 'Revisado', published: 'Publicado' };
+      statusEl.textContent = statusLabels[active.status] || active.status || 'Borrador';
+    }
+
+    // Incidents Stats
+    const incs = active.incidents || [];
+    const stats = typeof computeStats === 'function' ? computeStats(incs) : { count: incs.length, itCount: 0, redCount: 0, emergencia: 0, critica: 0, ministryCount: 0, platformCount: 0 };
+
+    const totalEl = document.getElementById('kpiIncTotal');
+    if (totalEl) totalEl.textContent = stats.count;
+
+    const breakdownEl = document.getElementById('kpiIncAreaBreakdown');
+    if (breakdownEl) breakdownEl.textContent = `${stats.itCount} IT · ${stats.redCount} RED`;
+
+    // Critical (Emergencia + Crítica / SL1 + SL2)
+    const critEl = document.getElementById('kpiCriticalCount');
+    if (critEl) critEl.textContent = (stats.emergencia || 0) + (stats.critica || 0);
+
+    const critBreakdownEl = document.getElementById('kpiCriticalBreakdown');
+    if (critBreakdownEl) critBreakdownEl.textContent = `${stats.emergencia || 0} SL1/Emerg. · ${stats.critica || 0} SL2/Crítica`;
+
+    // Special Attention (Ministry + Platform)
+    const specialEl = document.getElementById('kpiSpecialCount');
+    if (specialEl) specialEl.textContent = (stats.ministryCount || 0) + (stats.platformCount || 0);
+
+    const specialBreakdownEl = document.getElementById('kpiSpecialBreakdown');
+    if (specialBreakdownEl) specialBreakdownEl.textContent = `${stats.ministryCount || 0} Ministerio · ${stats.platformCount || 0} Plataforma`;
   },
 
   // Same year/week formula used to default the "Nuevo Informe" modal, so
@@ -83,22 +169,65 @@ const HomePage = {
   renderReports() {
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
+    const badgeEl = document.getElementById('searchCountBadge');
 
     if (this.reports.length === 0) {
       listEl.innerHTML = '';
       emptyEl.style.display = 'block';
+      if (badgeEl) badgeEl.textContent = '0 informes';
       return;
     }
 
     emptyEl.style.display = 'none';
+
+    const q = this.searchQuery || '';
+
+    const matchesQuery = (r) => {
+      if (!q) return true;
+      if (String(r.id || '').toLowerCase().includes(q)) return true;
+      if (String(r.range || '').toLowerCase().includes(q)) return true;
+      if (String(r.dept || '').toLowerCase().includes(q)) return true;
+      if (String(r.status || '').toLowerCase().includes(q)) return true;
+      if (String(r.notes || '').toLowerCase().includes(q)) return true;
+      if (`w${r.week}`.includes(q) || `semana ${r.week}`.includes(q) || `${r.year}`.includes(q)) return true;
+      if ((r.incidents || []).some(inc =>
+        String(inc.ticket || '').toLowerCase().includes(q) ||
+        String(inc.title || '').toLowerCase().includes(q) ||
+        String(inc.group || '').toLowerCase().includes(q) ||
+        String(inc.category || '').toLowerCase().includes(q) ||
+        String(inc.system || '').toLowerCase().includes(q)
+      )) return true;
+      return false;
+    };
+
+    const filteredReports = this.reports.filter(matchesQuery);
+
+    if (badgeEl) {
+      if (q) {
+        badgeEl.textContent = `${filteredReports.length} de ${this.reports.length} informes`;
+      } else {
+        badgeEl.textContent = `${this.reports.length} informe${this.reports.length !== 1 ? 's' : ''}`;
+      }
+    }
+
+    if (filteredReports.length === 0 && q) {
+      listEl.innerHTML = `
+        <div style="text-align:center; padding:48px 20px; color:#8A857C;">
+          <div style="font-size:32px; margin-bottom:12px;">🔍</div>
+          <div style="font-size:16px; font-weight:700; color:#26241F; margin-bottom:6px;">No se encontraron informes</div>
+          <div style="font-size:13px;">No hay resultados que coincidan con «<strong>${esc(q)}</strong>». Prueba con otro término.</div>
+        </div>
+      `;
+      return;
+    }
 
     // The status filter only narrows "Otras semanas" -- the current week's
     // report is always shown regardless of it, so it can't ever hide the
     // one report you're most likely here to check on.
     const { year: curYear, week: curWeek } = this.currentYearWeek();
     const isCurrentWeek = (r) => r.year === curYear && r.week === curWeek;
-    const currentWeekReports = this.reports.filter(isCurrentWeek);
-    const allOtherReports = this.reports.filter(r => !isCurrentWeek(r));
+    const currentWeekReports = filteredReports.filter(isCurrentWeek);
+    const allOtherReports = filteredReports.filter(r => !isCurrentWeek(r));
     const otherReportsFiltered = this.statusFilter === 'all'
       ? allOtherReports
       : allOtherReports.filter(r => r.status === this.statusFilter);
@@ -277,8 +406,10 @@ const HomePage = {
 
       if (this.currentEditId) {
         await ApiClient.updateReport(this.currentEditId, report);
+        if (window.Toast) Toast.success(`Informe ${this.currentEditId} actualizado con éxito.`);
       } else {
-        await ApiClient.createReport(report);
+        const created = await ApiClient.createReport(report);
+        if (window.Toast) Toast.success(`Informe ${created.id} creado con éxito.`);
       }
 
       this.closeModal();
@@ -319,6 +450,7 @@ const HomePage = {
       const newWeek = parseInt(document.getElementById('duplicateWeek').value);
 
       await ApiClient.duplicateReport(sourceId, newWeek);
+      if (window.Toast) Toast.success(`Informe duplicado con éxito a la semana ${newWeek}.`);
       this.closeDuplicateModal();
       await this.loadReports();
     } catch (error) {
@@ -337,43 +469,63 @@ const HomePage = {
   },
 
   async deleteReport(reportId) {
-    if (!confirm(`¿Estás seguro de que quieres borrar ${reportId}?`)) return;
+    const confirmed = window.Toast && window.Toast.confirm
+      ? await Toast.confirm(`¿Estás seguro de que quieres eliminar el informe "${reportId}"? Esta acción no se puede deshacer.`, {
+          title: 'Eliminar informe',
+          confirmText: 'Sí, eliminar',
+          cancelText: 'Cancelar',
+          danger: true
+        })
+      : confirm(`¿Estás seguro de que quieres borrar ${reportId}?`);
+
+    if (!confirmed) return;
 
     try {
       await ApiClient.deleteReport(reportId);
+      if (window.Toast) Toast.success(`Informe ${reportId} eliminado con éxito.`);
       await this.loadReports();
     } catch (error) {
-      alert('Error al borrar el informe: ' + error.message);
+      if (window.Toast) Toast.error('Error al borrar el informe: ' + error.message);
+      else alert('Error al borrar el informe: ' + error.message);
     }
   },
 
   async downloadPDF(reportId) {
     try {
+      if (window.Toast) Toast.info(`Generando PDF para ${reportId}...`, 3000);
       const report = await ApiClient.getReport(reportId);
       await downloadPdf(report, report.incidents || [], {
         filename: `${reportId}_ReporteIncidencias.pdf`
       });
+      if (window.Toast) Toast.success(`PDF descargado: ${reportId}`);
     } catch (error) {
-      alert('Error al descargar PDF: ' + error.message);
+      if (window.Toast) Toast.error('Error al descargar PDF: ' + error.message);
+      else alert('Error al descargar PDF: ' + error.message);
       console.error(error);
     }
   },
 
   async downloadPPTX(reportId) {
     try {
+      if (window.Toast) Toast.info(`Generando PowerPoint para ${reportId}...`, 3000);
       const report = await ApiClient.getReport(reportId);
       downloadPptx(report, report.incidents || [], `${reportId}_ReporteIncidencias.pptx`);
+      if (window.Toast) Toast.success(`PowerPoint generado: ${reportId}`);
     } catch (error) {
-      alert('Error al descargar PPT: ' + error.message);
+      if (window.Toast) Toast.error('Error al descargar PPT: ' + error.message);
+      else alert('Error al descargar PPT: ' + error.message);
       console.error(error);
     }
   },
 
   async downloadLegacyPPTX(reportId) {
     try {
+      if (window.Toast) Toast.info(`Descargando PowerPoint Legacy para ${reportId}...`, 3000);
       await ApiClient.downloadLegacyPptx(reportId);
+      if (window.Toast) Toast.success('PowerPoint Legacy descargado.');
     } catch (error) {
-      alert('Error al descargar PowerPoint Legacy: ' + error.message);
+      if (window.Toast) Toast.error('Error al descargar PowerPoint Legacy: ' + error.message);
+      else alert('Error al descargar PowerPoint Legacy: ' + error.message);
       console.error(error);
     }
   },
@@ -398,11 +550,13 @@ const HomePage = {
           ? Object.assign({}, data.meta, { incidents: data.incidents || [] })
           : data;
         await ApiClient.createReport(payload);
-        alert('Informe importado exitosamente');
+        if (window.Toast) Toast.success('Informe importado exitosamente.');
+        else alert('Informe importado exitosamente');
         await this.loadReports();
         document.getElementById('fileInput').value = '';
       } catch (error) {
-        alert('Error al importar: ' + error.message);
+        if (window.Toast) Toast.error('Error al importar: ' + error.message);
+        else alert('Error al importar: ' + error.message);
       }
     };
     reader.readAsText(file);
@@ -412,10 +566,12 @@ const HomePage = {
     try {
       const update = { status: newStatus };
       await ApiClient.updateReport(reportId, update);
+      if (window.Toast) Toast.success(`Estado de ${reportId} cambiado a ${newStatus}`);
       await this.loadReports();
       console.log(`✓ Estado de ${reportId} cambiado a ${newStatus}`);
     } catch (error) {
-      alert('Error al cambiar estado: ' + error.message);
+      if (window.Toast) Toast.error('Error al cambiar estado: ' + error.message);
+      else alert('Error al cambiar estado: ' + error.message);
       await this.loadReports(); // Recargar para restaurar el estado anterior
     }
   },

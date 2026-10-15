@@ -209,9 +209,41 @@
       this.renderDeck();
       this.save();
     },
-    removeIncident(i) {
+    async removeIncident(i) {
+      const inc = this.state.incidents[i];
+      const title = inc ? (inc.title || inc.ticket || `Incidencia #${i + 1}`) : 'esta incidencia';
+      const confirmed = window.Toast && window.Toast.confirm
+        ? await window.Toast.confirm(`¿Estás seguro de que deseas eliminar "${title}"?`, {
+            title: 'Eliminar incidencia',
+            confirmText: 'Sí, eliminar',
+            cancelText: 'Cancelar',
+            danger: true
+          })
+        : confirm(`¿Estás seguro de que deseas eliminar "${title}"?`);
+
+      if (!confirmed) return;
+
       this.state.incidents.splice(i, 1);
       this.state.openIdx = -1;
+      this.renderSidebarList();
+      this.renderDeck();
+      this.save();
+      if (window.Toast) window.Toast.success('Incidencia eliminada con éxito.');
+    },
+    moveIncident(i, direction) {
+      const targetIdx = i + direction;
+      if (targetIdx < 0 || targetIdx >= this.state.incidents.length) return;
+
+      const [item] = this.state.incidents.splice(i, 1);
+      this.state.incidents.splice(targetIdx, 0, item);
+
+      // Adjust openIdx to follow the moved item if it was open
+      if (this.state.openIdx === i) {
+        this.state.openIdx = targetIdx;
+      } else if (this.state.openIdx === targetIdx) {
+        this.state.openIdx = i;
+      }
+
       this.renderSidebarList();
       this.renderDeck();
       this.save();
@@ -227,6 +259,18 @@
       if (removeBtn) {
         e.stopPropagation();
         this.removeIncident(+removeBtn.dataset.i);
+        return;
+      }
+      const moveUpBtn = e.target.closest('[data-role="move-up"]');
+      if (moveUpBtn) {
+        e.stopPropagation();
+        if (!moveUpBtn.disabled) this.moveIncident(+moveUpBtn.dataset.i, -1);
+        return;
+      }
+      const moveDownBtn = e.target.closest('[data-role="move-down"]');
+      if (moveDownBtn) {
+        e.stopPropagation();
+        if (!moveDownBtn.disabled) this.moveIncident(+moveDownBtn.dataset.i, 1);
         return;
       }
       const header = e.target.closest('[data-role="header"]');
@@ -278,32 +322,34 @@
     },
 
     // ---- sidebar rendering ----
-    // Displays incidents sorted (group, then date/time) without reordering
-    // the underlying state.incidents array -- sorts the *indexes* instead,
-    // so each row's data-i/data-row still points at the incident's real
-    // position for editing/removal, and CSV/JSON export keeps insertion order.
-    sortedIncidentIndexes() {
-      return this.state.incidents.map((_, i) => i).sort((a, b) => compareIncidents(this.state.incidents[a], this.state.incidents[b]));
-    },
     renderSidebarList() {
       const c = this.computed();
       // Only render if elements exist (they may not in preview/other pages)
       if (this.els.incCount) this.els.incCount.textContent = c.count;
-      if (this.els.incidentsList) this.els.incidentsList.innerHTML = this.sortedIncidentIndexes().map(idx => this.rowTemplate(this.state.incidents[idx], idx)).join('');
+      if (this.els.incidentsList) {
+        const total = this.state.incidents.length;
+        this.els.incidentsList.innerHTML = this.state.incidents.map((inc, idx) =>
+          this.rowTemplate(inc, idx, idx === 0, idx === total - 1)
+        ).join('');
+      }
     },
-    rowTemplate(inc, idx) {
+    rowTemplate(inc, idx, isFirst, isLast) {
       const isOpen = this.state.openIdx === idx;
       const s = sev(inc.severity);
       const title = titleOrCat(inc);
       return (
         '<div class="mo-row" data-row="' + idx + '" style="border:1px solid #DEDAD3; border-radius:9px; overflow:hidden; background:#fff;">' +
-          '<div class="mo-incrow" data-role="header" data-i="' + idx + '" style="display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; background:#F7F6F4;">' +
+          '<div class="mo-incrow" data-role="header" data-i="' + idx + '" style="display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer; background:#F7F6F4;">' +
+            '<div style="display:flex; flex-direction:column; gap:2px; flex:none;">' +
+              '<button type="button" class="mo-btn" data-role="move-up" data-i="' + idx + '" title="Subir orden" ' + (isFirst ? 'disabled style="width:18px; height:13px; border:none; background:none; color:#C4C0B8; font-size:9px; line-height:1; cursor:not-allowed; padding:0; display:flex; align-items:center; justify-content:center;"' : 'style="width:18px; height:13px; border:none; background:none; color:#5C5852; font-size:9px; line-height:1; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;"') + '>▲</button>' +
+              '<button type="button" class="mo-btn" data-role="move-down" data-i="' + idx + '" title="Bajar orden" ' + (isLast ? 'disabled style="width:18px; height:13px; border:none; background:none; color:#C4C0B8; font-size:9px; line-height:1; cursor:not-allowed; padding:0; display:flex; align-items:center; justify-content:center;"' : 'style="width:18px; height:13px; border:none; background:none; color:#5C5852; font-size:9px; line-height:1; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;"') + '>▼</button>' +
+            '</div>' +
             '<span data-role="dot" style="width:9px; height:9px; border-radius:50%; flex:none; background:' + s.color + ';"></span>' +
             '<div style="flex:1; min-width:0;">' +
               '<div data-role="group" style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#FF7900;">' + esc(inc.group) + '</div>' +
               '<div data-role="title" style="font-size:12px; font-weight:600; color:#26241F; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(title) + '</div>' +
             '</div>' +
-            '<button class="mo-btn" data-role="remove" data-i="' + idx + '" style="flex:none; width:24px; height:24px; border:1px solid #DEDAD3; border-radius:6px; background:#fff; color:#8A857C; font-size:14px; line-height:1; cursor:pointer;">×</button>' +
+            '<button class="mo-btn" data-role="remove" data-i="' + idx + '" title="Eliminar incidencia" style="flex:none; width:24px; height:24px; border:1px solid #DEDAD3; border-radius:6px; background:#fff; color:#8A857C; font-size:14px; line-height:1; cursor:pointer;">×</button>' +
           '</div>' +
           (isOpen ? this.rowDetailTemplate(inc, idx) : '') +
         '</div>'
@@ -746,9 +792,16 @@
             this.renderSidebarList();
             this.renderDeck();
             this.save();
+            if (window.Toast) {
+              Toast.success('Archivo importado correctamente (' + this.state.incidents.length + ' incidencias).');
+            }
           }
         } catch (err) {
-          alert('No se pudo leer el archivo: ' + err.message);
+          if (window.Toast) {
+            Toast.error('No se pudo leer el archivo: ' + err.message);
+          } else {
+            alert('No se pudo leer el archivo: ' + err.message);
+          }
         }
       };
       r.readAsText(f);
@@ -790,6 +843,9 @@
       this.renderSidebarList();
       this.renderDeck();
       this.save();
+      if (window.Toast) {
+        Toast.success('CSV importado correctamente (' + rows.length + ' incidencias).');
+      }
     },
     downloadTemplate() {
       const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
@@ -800,11 +856,14 @@
         ['RED >5.000 clientes', 'EMERGENCIA', 'Pérdida de servicio móvil', 'Doble corte TX · Telefónica', 'Pérdida de servicio móvil en La Palma', '2606Y92535', '25/06/2026 12:15', '12h 25min', 'Reportada al Ministerio por impacto y duración.', 'Móvil | 6,5K (22 nodos)\\nLlamadas Brújula | 443', 'Caída de 22 nodos por doble corte de TX.', 'Recuperado tras reparar uno de los cortes.', '', '', '6.5', 'MásMóvil', 'si', '', '', 'si'],
       ];
       const lines = [cols.join(','), ...ex.map(row => row.map(q).join(','))];
-      const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'plantilla_reporte_incidencias.csv';
       a.click();
+      if (window.Toast) {
+        Toast.info('Descargando plantilla CSV...');
+      }
     },
     exportJSON() {
       const data = { meta: this.state.meta, incidents: sortIncidents(this.state.incidents) };
@@ -813,16 +872,23 @@
       a.href = URL.createObjectURL(blob);
       a.download = this.fileBase() + '.json';
       a.click();
+      if (window.Toast) {
+        Toast.success('JSON exportado correctamente.');
+      }
     },
     exportPPTX() {
       try {
+        if (window.Toast) Toast.info('Generando PowerPoint...');
         downloadPptx(this.state.meta, this.state.incidents, this.fileBase() + '.pptx');
+        if (window.Toast) Toast.success('PowerPoint generado con éxito.');
       } catch (error) {
-        alert(error.message);
+        if (window.Toast) Toast.error('Error al generar PowerPoint: ' + error.message);
+        else alert(error.message);
       }
     },
     async exportLegacyPPTX() {
       try {
+        if (window.Toast) Toast.info('Generando PowerPoint corporativo (Legacy)...');
         const payload = {
           year: this.state.meta.year,
           week: this.state.meta.week,
@@ -849,8 +915,10 @@
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        if (window.Toast) Toast.success('PowerPoint Legacy exportado con éxito.');
       } catch (error) {
-        alert('Error al exportar PowerPoint Legacy: ' + error.message);
+        if (window.Toast) Toast.error('Error al exportar PowerPoint Legacy: ' + error.message);
+        else alert('Error al exportar PowerPoint Legacy: ' + error.message);
       }
     },
   };
