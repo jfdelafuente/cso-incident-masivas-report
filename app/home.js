@@ -14,7 +14,6 @@ const HomePage = {
   reports: [],
   currentEditId: null,
   statusFilter: 'all',
-  searchQuery: '',
 
   async init() {
     console.log('Inicializando HomePage...');
@@ -48,14 +47,6 @@ const HomePage = {
     document.getElementById('duplicateForm').addEventListener('submit', (e) => this.handleDuplicateSubmit(e));
 
     document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
-
-    const searchInput = document.getElementById('reportSearchInput');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        this.searchQuery = e.target.value.trim().toLowerCase();
-        this.renderReports();
-      });
-    }
   },
 
   setStatusFilter(value) {
@@ -67,7 +58,6 @@ const HomePage = {
     const loadingEl = document.getElementById('loadingState');
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
-    const kpiEl = document.getElementById('kpiSection');
 
     if (loadingEl) loadingEl.style.display = 'flex';
     if (listEl) listEl.innerHTML = '';
@@ -76,7 +66,6 @@ const HomePage = {
     try {
       this.reports = await ApiClient.listReports();
       if (loadingEl) loadingEl.style.display = 'none';
-      this.renderKPIs();
       this.renderReports();
     } catch (error) {
       if (loadingEl) loadingEl.style.display = 'none';
@@ -87,63 +76,6 @@ const HomePage = {
         alert('Error al cargar los informes: ' + error.message);
       }
     }
-  },
-
-  renderKPIs() {
-    const kpiSection = document.getElementById('kpiSection');
-    if (!kpiSection) return;
-
-    if (!this.reports || this.reports.length === 0) {
-      kpiSection.style.display = 'none';
-      return;
-    }
-
-    const { year: curYear, week: curWeek } = this.currentYearWeek();
-    let active = this.reports.find(r => r.year === curYear && r.week === curWeek);
-    if (!active && this.reports.length > 0) {
-      active = this.reports[0];
-    }
-
-    if (!active) {
-      kpiSection.style.display = 'none';
-      return;
-    }
-
-    kpiSection.style.display = 'grid';
-
-    // Week & Status
-    const weekEl = document.getElementById('kpiWeek');
-    if (weekEl) weekEl.textContent = `S${active.week} · ${active.year}`;
-
-    const statusEl = document.getElementById('kpiStatus');
-    if (statusEl) {
-      const statusLabels = { draft: 'Borrador', reviewed: 'Revisado', published: 'Publicado' };
-      statusEl.textContent = statusLabels[active.status] || active.status || 'Borrador';
-    }
-
-    // Incidents Stats
-    const incs = active.incidents || [];
-    const stats = typeof computeStats === 'function' ? computeStats(incs) : { count: incs.length, itCount: 0, redCount: 0, emergencia: 0, critica: 0, ministryCount: 0, platformCount: 0 };
-
-    const totalEl = document.getElementById('kpiIncTotal');
-    if (totalEl) totalEl.textContent = stats.count;
-
-    const breakdownEl = document.getElementById('kpiIncAreaBreakdown');
-    if (breakdownEl) breakdownEl.textContent = `${stats.itCount} IT · ${stats.redCount} RED`;
-
-    // Critical (Emergencia + Crítica / SL1 + SL2)
-    const critEl = document.getElementById('kpiCriticalCount');
-    if (critEl) critEl.textContent = (stats.emergencia || 0) + (stats.critica || 0);
-
-    const critBreakdownEl = document.getElementById('kpiCriticalBreakdown');
-    if (critBreakdownEl) critBreakdownEl.textContent = `${stats.emergencia || 0} SL1/Emerg. · ${stats.critica || 0} SL2/Crítica`;
-
-    // Special Attention (Ministry + Platform)
-    const specialEl = document.getElementById('kpiSpecialCount');
-    if (specialEl) specialEl.textContent = (stats.ministryCount || 0) + (stats.platformCount || 0);
-
-    const specialBreakdownEl = document.getElementById('kpiSpecialBreakdown');
-    if (specialBreakdownEl) specialBreakdownEl.textContent = `${stats.ministryCount || 0} Ministerio · ${stats.platformCount || 0} Plataforma`;
   },
 
   // Same year/week formula used to default the "Nuevo Informe" modal, so
@@ -169,65 +101,22 @@ const HomePage = {
   renderReports() {
     const listEl = document.getElementById('reportsList');
     const emptyEl = document.getElementById('emptyState');
-    const badgeEl = document.getElementById('searchCountBadge');
 
     if (this.reports.length === 0) {
       listEl.innerHTML = '';
       emptyEl.style.display = 'block';
-      if (badgeEl) badgeEl.textContent = '0 informes';
       return;
     }
 
     emptyEl.style.display = 'none';
-
-    const q = this.searchQuery || '';
-
-    const matchesQuery = (r) => {
-      if (!q) return true;
-      if (String(r.id || '').toLowerCase().includes(q)) return true;
-      if (String(r.range || '').toLowerCase().includes(q)) return true;
-      if (String(r.dept || '').toLowerCase().includes(q)) return true;
-      if (String(r.status || '').toLowerCase().includes(q)) return true;
-      if (String(r.notes || '').toLowerCase().includes(q)) return true;
-      if (`w${r.week}`.includes(q) || `semana ${r.week}`.includes(q) || `${r.year}`.includes(q)) return true;
-      if ((r.incidents || []).some(inc =>
-        String(inc.ticket || '').toLowerCase().includes(q) ||
-        String(inc.title || '').toLowerCase().includes(q) ||
-        String(inc.group || '').toLowerCase().includes(q) ||
-        String(inc.category || '').toLowerCase().includes(q) ||
-        String(inc.system || '').toLowerCase().includes(q)
-      )) return true;
-      return false;
-    };
-
-    const filteredReports = this.reports.filter(matchesQuery);
-
-    if (badgeEl) {
-      if (q) {
-        badgeEl.textContent = `${filteredReports.length} de ${this.reports.length} informes`;
-      } else {
-        badgeEl.textContent = `${this.reports.length} informe${this.reports.length !== 1 ? 's' : ''}`;
-      }
-    }
-
-    if (filteredReports.length === 0 && q) {
-      listEl.innerHTML = `
-        <div style="text-align:center; padding:48px 20px; color:#8A857C;">
-          <div style="font-size:32px; margin-bottom:12px;">🔍</div>
-          <div style="font-size:16px; font-weight:700; color:#26241F; margin-bottom:6px;">No se encontraron informes</div>
-          <div style="font-size:13px;">No hay resultados que coincidan con «<strong>${esc(q)}</strong>». Prueba con otro término.</div>
-        </div>
-      `;
-      return;
-    }
 
     // The status filter only narrows "Otras semanas" -- the current week's
     // report is always shown regardless of it, so it can't ever hide the
     // one report you're most likely here to check on.
     const { year: curYear, week: curWeek } = this.currentYearWeek();
     const isCurrentWeek = (r) => r.year === curYear && r.week === curWeek;
-    const currentWeekReports = filteredReports.filter(isCurrentWeek);
-    const allOtherReports = filteredReports.filter(r => !isCurrentWeek(r));
+    const currentWeekReports = this.reports.filter(isCurrentWeek);
+    const allOtherReports = this.reports.filter(r => !isCurrentWeek(r));
     const otherReportsFiltered = this.statusFilter === 'all'
       ? allOtherReports
       : allOtherReports.filter(r => r.status === this.statusFilter);
