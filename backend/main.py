@@ -121,6 +121,7 @@ def get_db():
 # ============ Health Probes ============
 
 @app.get("/healthz")
+@app.get("/api/health")
 def healthz():
     """Liveness probe: verifica que el servicio está activo y respondiendo."""
     return {

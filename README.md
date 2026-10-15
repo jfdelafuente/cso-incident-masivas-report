@@ -29,7 +29,7 @@ Frontend en HTML/CSS/JS puro (sin paso de compilación) + backend FastAPI con pe
 
 ## 🏛️ Estructura del Repositorio
 
-- `app/` — Frontend estático (dashboard `index.html`, editor `editor.html`, vista previa `preview.html`, `report-render.js`, `api-client.js`).
+- `app/` — Frontend estático de referencia (el frontend oficial en producción y hub de portales está integrado en `release-dashboard-application/dashboards/reportes-incidencias/`).
 - `backend/` — API FastAPI + SQLite:
   - `main.py` — Endpoints CRUD, generación de PPTX semanal, endpoints de informes ejecutivos e integración de subida CSV.
   - `report_generator/` — Motor generador de Informes Ejecutivos PPTX (`ExecutiveReportBuilder`, Confluence parser, estilos).
