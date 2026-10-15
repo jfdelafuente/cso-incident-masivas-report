@@ -7,7 +7,7 @@
   const { sev, areaOf, severityOptions, parseDurMin, fmtDur, fmtK, num, metricsArr, actionPointsArr, BRAND_LOGOS_PPTX, computeStats, highlightIncident, truncateText, weekdayBreakdown, compareIncidents, sortIncidents, groupIncidentsForSlides, buildPptxDeck, downloadPptx } = window.ReportRender;
 
   function defaultMeta() {
-    return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 26 junio 2026' };
+    return { dept: 'Customer & Service Operations', year: '2026', week: '26', range: '22 – 28 de junio 2026' };
   }
 
   function seed() {

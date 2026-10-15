@@ -39,30 +39,30 @@ function getMondayOfIsoWeek(year, week) {
 }
 
 /**
- * Genera el rango de fechas formateado en español (Lun - Vie laboral estándar).
- * Ejemplo: "12 – 16 octubre 2026" o "29 junio – 3 julio 2026".
+ * Genera el rango de fechas formateado en español (Lunes a Domingo, semana completa incluyendo fin de semana).
+ * Ejemplo: "12 – 18 de octubre 2026" o "28 de septiembre – 4 de octubre 2026".
  * @param {number} year
  * @param {number} week
  * @returns {string}
  */
 function getWeekDateRange(year, week) {
   const mon = getMondayOfIsoWeek(Number(year), Number(week));
-  const fri = new Date(mon.getTime() + 4 * 86400000);
+  const sun = new Date(mon.getTime() + 6 * 86400000); // Domingo (+6 días) para incluir fin de semana
 
   const mDay = mon.getUTCDate();
   const mMonth = mon.getUTCMonth();
   const mYear = mon.getUTCFullYear();
 
-  const fDay = fri.getUTCDate();
-  const fMonth = fri.getUTCMonth();
-  const fYear = fri.getUTCFullYear();
+  const sDay = sun.getUTCDate();
+  const sMonth = sun.getUTCMonth();
+  const sYear = sun.getUTCFullYear();
 
-  if (mYear !== fYear) {
-    return `${mDay} ${MONTH_NAMES_ES[mMonth]} ${mYear} – ${fDay} ${MONTH_NAMES_ES[fMonth]} ${fYear}`;
-  } else if (mMonth !== fMonth) {
-    return `${mDay} ${MONTH_NAMES_ES[mMonth]} – ${fDay} ${MONTH_NAMES_ES[fMonth]} ${fYear}`;
+  if (mYear !== sYear) {
+    return `${mDay} de ${MONTH_NAMES_ES[mMonth]} ${mYear} – ${sDay} de ${MONTH_NAMES_ES[sMonth]} ${sYear}`;
+  } else if (mMonth !== sMonth) {
+    return `${mDay} de ${MONTH_NAMES_ES[mMonth]} – ${sDay} de ${MONTH_NAMES_ES[sMonth]} ${sYear}`;
   } else {
-    return `${mDay} – ${fDay} ${MONTH_NAMES_ES[fMonth]} ${fYear}`;
+    return `${mDay} – ${sDay} de ${MONTH_NAMES_ES[sMonth]} ${sYear}`;
   }
 }
 
@@ -100,3 +100,4 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = DateUtils;
 }
+
