@@ -209,8 +209,21 @@ RELEASE_DASHBOARD_ROOT = find_release_dashboard_root()
 # Se usa append al final del path para evitar suplantar paquetes propios del backend.
 if str(RELEASE_DASHBOARD_ROOT / "converters" / "cli") not in sys.path:
     sys.path.append(str(RELEASE_DASHBOARD_ROOT / "converters" / "cli"))
+if str(RELEASE_DASHBOARD_ROOT / "converters" / "src") not in sys.path:
+    sys.path.append(str(RELEASE_DASHBOARD_ROOT / "converters" / "src"))
 if str(RELEASE_DASHBOARD_ROOT) not in sys.path:
     sys.path.append(str(RELEASE_DASHBOARD_ROOT))
+
+# Permitir que generate_postmortem_report resuelva los submódulos de report_generator
+# (release_kpis_data, pptx_builder, etc.) que residen en release-dashboard-application
+rd_rg_dir = RELEASE_DASHBOARD_ROOT / "converters" / "src" / "report_generator"
+if rd_rg_dir.is_dir():
+    try:
+        import report_generator
+        if str(rd_rg_dir) not in report_generator.__path__:
+            report_generator.__path__.append(str(rd_rg_dir))
+    except Exception as e:
+        print(f"  [Integración] Aviso: No se pudo enlazar report_generator.__path__: {e}")
 
 try:
     from upload_csv import run_upload  # noqa: E402

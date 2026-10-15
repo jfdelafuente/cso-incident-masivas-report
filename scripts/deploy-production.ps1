@@ -400,8 +400,8 @@ sed -i 's/\r$//' "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/de
 chmod +x "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/dev/null || true
 
 # 8. Comprobar / actualizar dependencias de Python si requirements.txt lo requiere
-if [ -x "`$SHARED_DIR/venv/bin/pip" ]; then
-    "`$SHARED_DIR/venv/bin/pip" install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r "`$NEW_RELEASE_DIR/backend/requirements.txt" || true
+if [ -x "`$SHARED_DIR/venv/bin/python3" ]; then
+    "`$SHARED_DIR/venv/bin/python3" -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -q -r "`$NEW_RELEASE_DIR/backend/requirements.txt" || true
 fi
 
 # 9. Inicializar/migrar esquemas de base de datos usando el venv
