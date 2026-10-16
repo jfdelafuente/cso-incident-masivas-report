@@ -259,17 +259,22 @@ if (-not $SkipBuild) {
         New-Item -ItemType Directory -Path $BackendStaging -Force | Out-Null
         robocopy "$ProjectRoot\backend" "$BackendStaging" /E /XD venv __pycache__ data /XF *.db *.pyc *.log *.tar.gz *.whl backend.pid | Out-Null
 
-        # 2. Copiar configuración modular de Nginx
+        # 2. Copiar scripts de soporte y exportación (export_legacy_pptx, template PPTX, etc.)
+        $ScriptsStaging = Join-Path $StagingDir "scripts"
+        New-Item -ItemType Directory -Path $ScriptsStaging -Force | Out-Null
+        robocopy "$ProjectRoot\scripts" "$ScriptsStaging" /E /XD __pycache__ /XF deploy-production.ps1 *.pyc *.log | Out-Null
+
+        # 3. Copiar configuración modular de Nginx
         $NginxStaging = Join-Path $StagingDir "nginx\conf.d"
         New-Item -ItemType Directory -Path $NginxStaging -Force | Out-Null
         Copy-Item "$ProjectRoot\nginx\conf.d\cso-incident.conf" -Destination $NginxStaging
 
-        # 3. Copiar stub de redirección app/index.html
+        # 4. Copiar stub de redirección app/index.html
         $AppStaging = Join-Path $StagingDir "app"
         New-Item -ItemType Directory -Path $AppStaging -Force | Out-Null
         Copy-Item "$ProjectRoot\app\index.html" -Destination $AppStaging
 
-        # 4. Copiar scripts de control de release y versión
+        # 5. Copiar scripts de control de release y versión
         Copy-Item "$ProjectRoot\rollback.sh" -Destination $StagingDir
         Copy-Item "$ProjectRoot\status.sh" -Destination $StagingDir
         if (Test-Path "$ProjectRoot\VERSION") {
@@ -278,7 +283,7 @@ if (-not $SkipBuild) {
             "2.1.0-$(Get-Date -Format 'yyyyMMdd')" | Out-File -FilePath (Join-Path $StagingDir "VERSION") -Encoding utf8
         }
 
-        # 5. Generar tarball
+        # 6. Generar tarball
         if (Test-Path $TarballFullPath) { Remove-Item $TarballFullPath -Force }
         tar --force-local -czf "$TarballFullPath" -C "$StagingDir" .
 
@@ -396,8 +401,8 @@ if [ -f "`$SHARED_DIR/.env" ]; then
 fi
 
 # 7. Normalizar permisos y saltos de línea (evitar problemas de CRLF de Windows)
-sed -i 's/\r$//' "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/dev/null || true
-chmod +x "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh 2>/dev/null || true
+sed -i 's/\r$//' "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh "`$NEW_RELEASE_DIR"/scripts/*.py 2>/dev/null || true
+chmod +x "`$NEW_RELEASE_DIR"/backend/*.sh "`$NEW_RELEASE_DIR"/*.sh "`$NEW_RELEASE_DIR"/scripts/*.py 2>/dev/null || true
 
 # 8. Comprobar / actualizar dependencias de Python si requirements.txt lo requiere
 if [ -x "`$SHARED_DIR/venv/bin/python3" ]; then
@@ -477,6 +482,10 @@ echo ""
 
 printf "Nginx Proxy (:8081/api/health): "
 curl -sf --noproxy '*' http://127.0.0.1:8081/api/health || echo "ERROR"
+echo ""
+
+printf "Legacy PPTX Module: "
+"`$SHARED_DIR/venv/bin/python3" -c "import sys; sys.path.insert(0, '`$CURRENT_LINK/scripts'); from export_legacy_pptx import generate_legacy_pptx_bytes; print('OK')" 2>/dev/null || echo "ERROR"
 echo ""
 
 echo "--> [Remoto] Despliegue completado con éxito."

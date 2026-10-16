@@ -29,9 +29,11 @@ if str(SCRIPTS_DIR) not in sys.path:
 try:
     from export_legacy_pptx import generate_legacy_pptx_bytes
     LEGACY_PPTX_AVAILABLE = True
+    print(f"[PPTX Legacy] Módulo export_legacy_pptx cargado correctamente desde {SCRIPTS_DIR}")
 except Exception as e:
     generate_legacy_pptx_bytes = None
     LEGACY_PPTX_AVAILABLE = False
+    print(f"[PPTX Legacy] Aviso: No se pudo cargar módulo export_legacy_pptx ({e})")
 
 # Database setup
 # Prioridad de resolución de la base de datos:
@@ -145,6 +147,7 @@ def readyz(db: Session = Depends(get_db)):
     return {
         "status": "ready" if db_ok else "degraded",
         "database": "ok" if db_ok else "error",
+        "legacyPptxEngine": "available" if LEGACY_PPTX_AVAILABLE else "unavailable",
         "executiveReportEngine": "available" if EXECUTIVE_REPORT_AVAILABLE else "unavailable",
         "executiveReportsDir": reports_dir,
     }
