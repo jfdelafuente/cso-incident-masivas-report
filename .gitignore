@@ -26,3 +26,7 @@ scratch/
 .env.local
 dist/
 
+# Local IDE and assistant settings
+.claude/
+
+
