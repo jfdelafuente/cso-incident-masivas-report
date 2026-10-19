@@ -37,15 +37,28 @@ except ImportError:
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
-# Real ticket codes (e.g. "2607C80395") always contain a digit; the column
-# label words below are pure alphabetic and would otherwise false-match a
-# plain [A-Za-z0-9]{6,}.
-TICKET_RE = re.compile(r"(?=.*\d)[A-Za-z0-9]{6,}")
+# Real ticket codes (e.g. "2607C80395", "OPIT-964411", "RED-460322") always
+# contain a digit; the column label words below are pure alphabetic and
+# would otherwise false-match a plain [A-Za-z0-9\-_]{5,}.
+TICKET_RE = re.compile(r"(?=.*\d)[A-Za-z0-9\-_]{5,}")
 
 # Column/field label textboxes -- excluded wherever we're looking for a
-# *value* near a label's coordinates, since on at least one slide the label
-# and its value share the same local x (see nearest()'s tie-breaking note).
-LABEL_WORDS = ("Impacto", "Causa", "Solución", "ID", "Fecha", "Duración")
+# *value* near a label's coordinates.
+LABEL_WORDS = (
+    "impacto",
+    "causa",
+    "solución",
+    "solucion",
+    "solution",
+    "id",
+    "fecha",
+    "duración",
+    "duracion",
+)
+
+
+def is_label(text):
+    return (text or "").strip().lower() in LABEL_WORDS
 
 
 def slide_group(title_text):
@@ -57,13 +70,13 @@ def slide_group(title_text):
     if "it mm" in tl:
         return "IT MM", True
     if "it" in tl:
-        return "RED (Incidencias IT)", True
+        return "IT OSP/JZZ", True
     if "5000" in tl or "5.000" in tl:
         return "RED >5.000 clientes", True
     if "relevantes" in tl or "climatolog" in tl or "escalados" in tl or "otras" in tl:
         return "Otras RED", True
     if "b2b" in tl:
-        return "RED B2B", False  # not an existing convention -- flagged
+        return "RED B2B", True
     return f"RED ({t})" if t else "Otras RED", False
 
 
@@ -108,6 +121,77 @@ def nearest(items, target_x, tolerance=0.6):
     return best
 
 
+def is_metric_line(line, group):
+    line = line.strip()
+    if not line:
+        return False
+
+    # In IT MM, the text in column 1 is always descriptive impact
+    if group == "IT MM":
+        return False
+
+    # Check for Label: Value pattern (e.g. Clientes de FTTH: 37,3K, TTs MM/KRT: 15)
+    if ":" in line:
+        label, _, val = line.partition(":")
+        label_lower = label.strip().lower()
+        val = val.strip()
+
+        metric_labels = ("tts", "llamadas", "consultas", "clientes", "ftth", "móvil", "movil", "órdenes", "ordenes", "sedes", "líneas", "lineas")
+        if any(ml in label_lower for ml in metric_labels):
+            return True
+
+        if re.search(r"\d", val) and len(val.split()) <= 6:
+            return True
+
+    # Starts with percentage (e.g. "50% de las llamadas...")
+    if re.match(r"^\d+([.,]\d+)?\s*%", line):
+        return True
+
+    # Starts with quantity / KPI count (e.g. "18 SFID", "560 cuentas", "6,4K clientes", "63GB", "110K sesiones")
+    if re.match(r"^\d+([.,]\d+)?\s*([kKmMbB]|GB|MB|TB|SFID|cuentas|líneas|lineas|sesiones|errores|clientes|nodos|órdenes|ordenes)\b", line, re.IGNORECASE):
+        return True
+
+    # Common operational metric phrases in RED
+    lower = line.lower()
+    metric_phrases = [
+        "clientes de ftth", "clientes de móvil", "clientes de movil", "clientes atachados",
+        "desviación dd", "desviacion dd", "sin servicio tv multicast",
+        "tts mm", "tts osp", "tts krt", "llamadas/consultas", "llamadas menos",
+        "tráfico perdido", "trafico perdido", "errores diameter",
+    ]
+    if any(lower.startswith(k) or k in lower for k in metric_phrases):
+        return True
+
+    return False
+
+
+def split_impacto(impacto_text, group):
+    """Splits text from column 1 under 'Impacto' into narrative impact and KPI metrics.
+    For IT MM, all text describes operational impact.
+    For IT OSP/JZZ and RED, separates quantitative metric lines from descriptive paragraphs."""
+    if not impacto_text:
+        return "", ""
+
+    if group == "IT MM":
+        return impacto_text.strip(), ""
+
+    lines = [l.strip() for l in impacto_text.split("\n") if l.strip()]
+    metric_lines = []
+    impact_lines = []
+
+    for l in lines:
+        if is_metric_line(l, group):
+            if ":" in l:
+                lbl, _, v = l.partition(":")
+                metric_lines.append(f"{lbl.strip()} | {v.strip()}")
+            else:
+                metric_lines.append(l)
+        else:
+            impact_lines.append(l)
+
+    return "\n".join(impact_lines), "\n".join(metric_lines)
+
+
 def metrics_to_pipe_format(text):
     """'Clientes de FTTH: 94K' -> 'Clientes de FTTH | 94K', one per line
     (matches this app's metricsArr() "label | value" convention)."""
@@ -138,42 +222,89 @@ def extract_numbers(metrics_text):
     return cFTTH, cMobile
 
 
+def infer_category(title, group_label):
+    """Infiere la categoría a partir del título:
+    - En IT: 'Indisponibilidad' o 'Degradación' según corresponda.
+    - En RED: 'Pérdida de servicio FTTH y móvil', 'Pérdida de servicio móvil' o 'Pérdida de servicio FTTH'.
+    Si no coincide con ninguna, devuelve cadena vacía."""
+    t = title or ""
+    if "IT" in (group_label or "").upper():
+        if re.search(r"indisponib", t, re.IGNORECASE):
+            return "Indisponibilidad"
+        if re.search(r"degradac", t, re.IGNORECASE):
+            return "Degradación"
+        return ""
+
+    if re.search(r"p[eé]rdida\s+de\s+servicio\s+(?:ftth\s+y\s+m[oó]vil|m[oó]vil\s+y\s+ftth)", t, re.IGNORECASE):
+        return "Pérdida de servicio FTTH y móvil"
+    if re.search(r"p[eé]rdida\s+de\s+servicio\s+m[oó]vil", t, re.IGNORECASE):
+        return "Pérdida de servicio móvil"
+    if re.search(r"p[eé]rdida\s+de\s+servicio\s+ftth", t, re.IGNORECASE):
+        return "Pérdida de servicio FTTH"
+    return ""
+
+
 def parse_incident_group(group_shape, group_label):
     items = []
     collect_textboxes([group_shape], items)
 
-    # The ticket textbox is a *sibling* of the inner "card" group (not
-    # nested inside the 3-column content), so it's already in `items`
-    # alongside everything else -- but it's the only one containing what
-    # looks like a bare ticket code. Extract lines that look like tickets
-    # (letters+digits, no spaces) instead of relying on position for this
-    # one, since its exact offset shifts slide to slide.
+    # Extract tokens that look like tickets (letters+digits/hyphens, split by
+    # newline or slash) within the ID horizontal band.
     ticket_candidates = []
     other_items = []
     for x, y, text in items:
-        lines = [l.strip() for l in text.split("\n") if l.strip()]
-        if lines and all(TICKET_RE.fullmatch(l) for l in lines):
-            ticket_candidates.extend(lines)
+        tokens = [tok.strip() for tok in re.split(r"[\n/]", text) if tok.strip()]
+        if 4.0 < x < 8.0 and tokens and all(TICKET_RE.fullmatch(tok) for tok in tokens) and not is_label(text):
+            ticket_candidates.extend(tokens)
         else:
             other_items.append((x, y, text))
 
-    items = other_items
-    exact = {t: (x, y) for x, y, t in items}
+    non_labels = [(x, y, t) for x, y, t in other_items if not is_label(t)]
 
-    title = None
-    for x, y, text in items:
-        if x < 1.5 and y < 2.0 and text not in LABEL_WORDS:
-            title = text
-            break
+    # Column 1 items (Title & Impacto) are at x < 2.5
+    col1 = [(x, y, t) for x, y, t in non_labels if x < 2.5]
+    col1.sort(key=lambda it: it[1])  # sort top-to-bottom by y
+    if len(col1) >= 2:
+        title = col1[0][2]
+        impacto = "\n".join(t for _, _, t in col1[1:])
+    elif len(col1) == 1:
+        if col1[0][1] < 2.0:
+            title = col1[0][2]
+            impacto = ""
+        else:
+            title = ""
+            impacto = col1[0][2]
+    else:
+        title = ""
+        impacto = ""
 
-    fecha = nearest([(x, y, t) for x, y, t in items if 9.0 < x < 10.0 and y > 1.4 and t not in LABEL_WORDS], 9.28)
-    duracion = nearest([(x, y, t) for x, y, t in items if x > 10.5 and y > 1.4 and t not in LABEL_WORDS], 11.12)
+    # Fecha: look for date pattern (DD/MM/YYYY) or coordinate band 8.0 < x < 10.5, y < 2.5
+    fecha_item = next(
+        ((x, y, t) for x, y, t in non_labels if 8.0 < x < 10.5 and y < 2.5 and re.search(r"\d{2}/\d{2}/\d{4}", t)),
+        None,
+    )
+    if not fecha_item:
+        fecha_item = next(((x, y, t) for x, y, t in non_labels if 8.5 <= x <= 10.2 and y < 2.5), None)
+    fecha = fecha_item[2].strip() if fecha_item else ""
 
-    body = [(x, y, t) for x, y, t in items if y > 3.8 and t not in LABEL_WORDS]
-    impacto = nearest(body, 0.5, tolerance=1.0)
-    causa = nearest(body, 4.0, tolerance=1.0)
-    solucion_raw = nearest(body, 8.1, tolerance=1.0)
-    solucion = solucion_raw or ""
+    # Duracion: x > 10.0 and y < 2.5
+    duracion_item = next(((x, y, t) for x, y, t in non_labels if x > 10.0 and y < 2.5), None)
+    duracion = duracion_item[2].strip() if duracion_item else ""
+
+    # Causa: column 2 (2.5 <= x < 6.5)
+    causa_items = [t for x, y, t in non_labels if 2.5 <= x < 6.5]
+    causa = "\n".join(causa_items).strip()
+
+    # Solución: column 3 (6.5 <= x < 9.5), excluding consumed header items
+    consumed_items = set()
+    if fecha_item:
+        consumed_items.add(fecha_item)
+    if duracion_item:
+        consumed_items.add(duracion_item)
+
+    solucion_items = [t for it in non_labels if 6.5 <= it[0] < 9.5 and it not in consumed_items for t in [it[2]]]
+    solucion_raw = "\n".join(solucion_items).strip()
+    solucion = solucion_raw
     action_points = ""
     if solucion:
         ap_match = re.search(r"(?i)\n?\s*(?:action\s*points?|puntos?\s+de\s+acci[oó]n)\s*:\s*\n?(.*)", solucion, re.DOTALL)
@@ -187,25 +318,34 @@ def parse_incident_group(group_shape, group_label):
                     ap_lines.append(l_clean)
             action_points = "\n".join(ap_lines)
 
-    metrics_raw = impacto or ""
-    cFTTH, cMobile = extract_numbers(metrics_raw)
+    impact_text, metrics_text = split_impacto(impacto or "", group_label)
+    cFTTH, cMobile = extract_numbers(impacto or "")
 
     flags = []
     combined_lower = " ".join(filter(None, [title, causa, solucion, duracion])).lower()
     if "xxxx" in combined_lower or (duracion or "").strip() in ("", "h m"):
         flags.append("datos incompletos (placeholder xxxx/vacío) en el PPT original")
 
+    if "IT" in (group_label or "").upper():
+        severity = "SL1" if re.search(r"indisponib", title or "", re.IGNORECASE) else "SL2"
+    else:
+        # RED: solo Emergencia o Critica (por defecto), nunca SL1 ni SL2
+        combined_text = " ".join(filter(None, [title, impacto, causa]))
+        severity = "EMERGENCIA" if re.search(r"emergenc", combined_text, re.IGNORECASE) else "CRITICA"
+
+    category = infer_category(title, group_label)
+
     return {
         "group": group_label,
-        "severity": "SL2",
-        "category": "",
+        "severity": severity,
+        "category": category,
         "system": "",
         "title": title or "",
         "ticket": " / ".join(ticket_candidates),
         "date": fecha or "",
         "duration": duracion or "",
-        "impact": "",
-        "metrics": metrics_to_pipe_format(metrics_raw),
+        "impact": impact_text,
+        "metrics": metrics_text,
         "cause": causa or "",
         "solution": solucion,
         "actionPoints": action_points,
@@ -231,8 +371,10 @@ def find_incident_groups(slide_shapes):
             continue
         items = []
         collect_textboxes([shape], items)
-        has_ticket = any(TICKET_RE.fullmatch(l.strip())
-                          for _, _, t in items for l in t.split("\n") if l.strip())
+        has_ticket = any(
+            any(TICKET_RE.fullmatch(tok.strip()) for tok in re.split(r"[\n/]", t) if tok.strip())
+            for x, y, t in items if not is_label(t) and x < 10.0
+        )
         if has_ticket:
             groups.append(shape)
     return groups
@@ -343,10 +485,14 @@ def main():
         for w in warnings:
             print(f"  - {w}")
         print()
-    missing_fields = ["severity (default SL2)", "brands (vacío)", "ministry/platform/externalOrigin (False)"]
+    missing_fields = ["severity (IT: SL1 en indisponibilidad / resto SL2; RED: Emergencia / Critica por defecto)", "brands (vacío)", "ministry/platform/externalOrigin (False)"]
     if not any(i.get("actionPoints") for i in incidents):
         missing_fields.append("actionPoints (vacío)")
-    missing_fields.append("category/system (vacío, todo va en 'title')")
+    if any(i.get("category") for i in incidents):
+        missing_fields.append("category (inferida según título / vacía en resto)")
+    else:
+        missing_fields.append("category (vacío)")
+    missing_fields.append("system (vacío, todo va en 'title')")
     print("Campos que este PPT no registraba o quedaron con valor por defecto:")
     print("  - " + ", ".join(missing_fields))
     print()
