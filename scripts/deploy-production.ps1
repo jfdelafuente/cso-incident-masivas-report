@@ -347,6 +347,14 @@ NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
 echo "--> [Remoto] Asegurando directorios persistentes en /infocodes/var/ y structure de releases..."
 mkdir -p "`$VAR_DATA_DIR" "`$VAR_STORAGE_DIR" "`$VAR_RUN_DIR" "`$VAR_BACKUP_DIR" "`$RELEASES_DIR" "`$SHARED_DIR"
 
+# Unificación de almacenamiento con release-dashboard-application
+RD_EXEC_DIR="/infocodes/project/release-dashboard-application/shared/data/reports/executive"
+if [ -d "`$RD_EXEC_DIR" ] && [ ! -L "`$RD_EXEC_DIR" ]; then
+    echo "--> [Remoto] Sustituyendo directorio legado de release-dashboard por symlink a `$VAR_STORAGE_DIR..."
+    rm -rf "`$RD_EXEC_DIR"
+    ln -sfn "`$VAR_STORAGE_DIR" "`$RD_EXEC_DIR"
+fi
+
 if [ ! -f "`$TMP_TAR" ]; then
     echo "ERROR: No se encuentra `$TMP_TAR en el servidor."
     exit 1

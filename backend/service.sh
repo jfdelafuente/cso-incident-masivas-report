@@ -27,7 +27,7 @@ fi
 
 PORT="${BACKEND_PORT:-8000}"
 LEGACY_PID_FILE="$SCRIPT_DIR/backend.pid"
-LEGACY_REPORTS_DIR="$SCRIPT_DIR/data/reports/executive"
+LOCAL_REPORTS_DIR="$SCRIPT_DIR/data/reports/executive"
 if [ -d "/infocodes" ]; then
     PID_DIR="/infocodes/var/run"
     PID_FILE="${PID_FILE:-$PID_DIR/cso-backend.pid}"
@@ -39,7 +39,7 @@ if [ -d "/infocodes" ]; then
 else
     PID_DIR="$SCRIPT_DIR"
     PID_FILE="${PID_FILE:-$LEGACY_PID_FILE}"
-    export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-$LEGACY_REPORTS_DIR}}"
+    export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-$LOCAL_REPORTS_DIR}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
     export RELEASE_DASHBOARD_ROOT="${RELEASE_DASHBOARD_ROOT:-$SCRIPT_DIR/../../release-dashboard-application}"
 fi
@@ -281,18 +281,6 @@ start() {
     rm -f "$PID_FILE" "$LEGACY_PID_FILE"
     ensure_venv
     mkdir -p "$LOG_DIR" "$PID_DIR" "$EXECUTIVE_REPORTS_OUTPUT_DIR"
-
-    # Migración automática de informes ejecutivos previos desde el repo hacia el almacenamiento externo
-    if [ "$EXECUTIVE_REPORTS_OUTPUT_DIR" != "$LEGACY_REPORTS_DIR" ] && [ -d "$LEGACY_REPORTS_DIR" ]; then
-        for f in "$LEGACY_REPORTS_DIR"/*.pptx; do
-            [ -f "$f" ] || continue
-            base_f="$(basename "$f")"
-            if [ ! -f "$EXECUTIVE_REPORTS_OUTPUT_DIR/$base_f" ]; then
-                cp -p "$f" "$EXECUTIVE_REPORTS_OUTPUT_DIR/$base_f" && \
-                    log_info "Migrado informe ejecutivo legado $base_f -> $EXECUTIVE_REPORTS_OUTPUT_DIR/$base_f"
-            fi
-        done
-    fi
 
     log_info "Iniciando backend (puerto $PORT, RELOAD=$RELOAD, storage=$EXECUTIVE_REPORTS_OUTPUT_DIR)..."
     nohup "$PYTHON_BIN" main.py >> "$LOG_FILE" 2>&1 &
