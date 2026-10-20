@@ -1,83 +1,85 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) and other AI assistants when working with code in this repository.
 
 ## What this is
 
-"Automatización de reportes semanales" — an internal Orange tool that turns a weekly list of IT/RED incidents into a styled slide deck (web preview, PDF, and editable PowerPoint), replacing a manually-built PowerPoint. Vanilla HTML/CSS/JS frontend + a small FastAPI backend for persistence. No frontend build step, no test suite, no linter configured.
+"Automatización de reportes semanales" — internal ORANGE backend service and generator engine that turns a weekly list of IT/RED incidents into styled presentation dossiers (PowerPoint `.pptx`, PDF, and structured JSON).
 
-The original Claude Design handoff bundle (HTML/CSS/JS mockups + the design conversation that produced them, explaining *why* the UI looks the way it does) lived in `project/`/`chats/` early in this repo's history and was removed once no longer needed — check `git log` before that removal if you need the original design rationale. The real implementation lives in `app/` and `backend/`.
+Also serves as the **Single Source of Truth (SSOT)** for generating executive postmortem presentations consumed by sibling apps like **Gestión de Problemas Dashboard** (`/problemas`) and **Release Dashboard Application** (`/dashboards`).
+
+> ⚠️ **Frontend Migration Notice**: The official user-facing frontend was migrated to `release-dashboard-application` under `dashboards/reportes-incidencias/`. In this repository, `app/` only retains a lightweight `index.html` HTTP 301 redirect card for backward compatibility. All future frontend UI work belongs in `release-dashboard-application`.
 
 ## Running locally
 
-Frontend (static files, no build step):
+### Backend (FastAPI + SQLite on port 8000):
 ```bash
-cd app && python -m http.server 8080   # or start-local.sh / start-local.bat from repo root
-```
-Open http://localhost:8080 (serves `index.html`, the dashboard — see Architecture below). A VS Code launch config for this exists at `.claude/launch.json`. Note: unlike the editor (`editor.html`), the dashboard has no offline/seeded fallback — if the backend isn't running you'll get "no se puede conectar al backend" alerts and an empty list, so start the backend too (see below) even for a quick frontend-only look.
+# Windows:
+.\start-local.bat
 
-Backend (FastAPI + SQLite):
+# Linux / Mac / WSL:
+chmod +x start-local.sh
+./start-local.sh
+```
+Or manually:
 ```bash
 cd backend
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt
 python main.py                                      # or: uvicorn main:app --reload --port 8000
 ```
-Serves on http://localhost:8000; interactive docs at `/docs`. The frontend's `ApiClient` (`app/api-client.js`) defaults to `http://localhost:8000` but reads an override from `localStorage['api_base_url']` — useful when pointing a local frontend at the staging backend or vice versa.
+Interactive docs at `http://localhost:8000/docs`.
 
-There is no automated test suite and no lint/format tooling in this repo — don't invent commands for these.
+There is no automated test suite and no lint/format tooling in this repo — do not invent commands for these.
 
 ## Architecture
 
-**Two frontend surfaces sharing state through the DOM and localStorage, not modules:**
+**Backend** (`backend/`):
+- FastAPI app in `main.py`, SQLAlchemy models in `models.py`, Pydantic schemas in `schemas.py`.
+- SQLite database defaults to `reports.db` locally or `/infocodes/var/data/cso-incident-masivas-report/reports.db` in production via `DATABASE_URL`.
+- Report primary key is `"{year}-W{week:02d}"` (e.g. `2026-W26`), not an autoincrement ID — creating a duplicate year/week returns HTTP 409.
+- Observability probes: `/healthz` (liveness), `/readyz` (readiness verifying database and PPTX engine), `/api/health` (legacy).
+- Single Source of Truth for executive PPTX generation (`/api/v1/reports/executive-incident/...`) and legacy weekly export (`/api/reports/{id}/legacy-pptx`).
+- End-to-end request tracing via `X-Request-ID` and `X-Process-Time` middleware.
 
-- `index.html` + `home.js` (`HomePage` object) — the landing page / dashboard: lists/creates/duplicates/deletes reports via `ApiClient`, imports/exports JSON/CSV, links to `editor.html?report=<id>` and `preview.html?report=<id>`. This is the only page that treats the backend as the source of truth. (Renamed from `home.html` — Nginx's `index` directive and `try_files` fallback in `nginx.conf` already point at literal `index.html`, so nothing there needed to change, only the internal links in `home.js`/`preview.html`/`editor.html`.)
-- `editor.html` (renamed from `index.html`) + `app.js` (`App`, an IIFE) + `editor.js` (`ReportEditor`) — the report editor/deck. This is two scripts cooperating on one page:
-  - `app.js` owns rendering, in-memory state, and PDF/PPTX export (via the `pptxgenjs` CDN bundle loaded in `editor.html`). It persists to `localStorage['mo_inc_report_v1']` and can run **standalone** with no backend (seeded with demo data in `seed()`).
-  - `editor.js` bridges that page to the backend: reads `?report=<id>` from the URL, loads/saves via `ApiClient`, and mutates `App.state` directly, then re-writes the same localStorage key so `app.js` stays in sync. It polls for `App` to exist (`setTimeout` retry loop) because there's no module system enforcing load order — if you add a new script here, replicate that pattern rather than assuming `app.js` has already run.
-  - `?view` query param puts the editor in read-only mode (disables all inputs/buttons via `disableEditControls()`).
-- `preview.html` — standalone read-only slide viewer/export page, same `pptxgenjs` dependency, links back to `index.html`.
-- `api-client.js` — thin fetch wrapper (`ApiClient`) used by `home.js` and `editor.js`. Not used by `app.js` directly. Its default `baseURL` is environment-sensitive: an absolute `http://localhost:8000` when the page itself is served from `localhost`/`127.0.0.1` (local dev, frontend and backend on different ports), otherwise `''` (relative), so requests go through `/api` on the *same origin* the page was loaded from and let Nginx's `/api` proxy reach the backend. Don't hardcode `http://localhost:8000` anywhere in the frontend — from a remote browser that resolves to the visitor's own machine, not the server.
+**Report Generator** (`backend/report_generator/`):
+- Autonomous engine for executive postmortem PPTX generation:
+  - `confluence_parser.py`: Parses Confluence wiki markup, Jira tables, timelines, and action points.
+  - `executive_report_builder.py`: Builds corporate PowerPoint decks using `python-pptx` and `assets/executive_template.pptx`.
+  - `executive_paths.py`: Resolves decoupled storage (`/infocodes/var/storage/executive_pptx/`) and automatic file retention cleanup.
 
-**Backend** (`backend/`): FastAPI app in `main.py`, SQLAlchemy models in `models.py`, Pydantic schemas in `schemas.py`. SQLite database defaults to `reports.db` locally or `/infocodes/var/data/cso-incident-masivas-report/reports.db` in production via `DATABASE_URL`. Report primary key is `"{year}-W{week:02d}"` (e.g. `2026-W26`), not an autoincrement id — creating a duplicate year/week returns 409. CORS is wide open (`allow_origins=["*"]`) for dev; tighten `main.py` before hardening. Modern observability probes are `/healthz` (liveness) and `/readyz` (readiness verifying database and executive report engine), while `/api/health` is preserved for legacy backward compatibility. Also serves as Single Source of Truth for executive PPTX generation (`/api/reports/executive/...` and `/api/reports/{id}/legacy-pptx`) consumed by sibling apps like `gestion-problemas-dashboard`.
+**CLI Tools** (`scripts/`):
+- `import_pptx.py`: Ingests legacy weekly PowerPoint decks into structured JSON or directly posts them to the API.
+- `export_legacy_pptx.py`: Generates the official corporate weekly slide deck using `scripts/legacy_template.pptx`.
+- `dump_pptx_shapes.py`: Diagnostic tool for dumping shape coordinates and textboxes of PPTX templates.
 
-**Process management (`backend/service.sh`)**: the staging server has no systemd and the deploy user (`infocodes`, uid=2001) has no root, so the backend is supervised by a hand-rolled PID-file script instead of a systemd unit — `./service.sh {start|stop|restart|status}`. It refuses to start if port 8000 is already held by an unrelated process, and identifies "its" process by checking `/proc/<pid>/cmdline` (falls back to `ps` where `/proc` isn't available) rather than `pkill -f main.py`, because the server hosts multiple unrelated Python apps under `/infocodes` and a name-based kill could hit the wrong one. PID file is stored in `/infocodes/var/run/cso-backend.pid` (or `backend/backend.pid` fallback). `backend.log` lives in `/infocodes/logs/cso-incident-masivas-report/` (outside the repo tree, same rationale as the backup directory below — not the `backend/` dir itself, so it survives repo operations and stays out of what `deploy.sh` clones/pulls); `service.sh start` creates that directory if missing.
+## Process Management & Maintenance
 
-The staging shell has `http_proxy`/`https_proxy` set to a corporate proxy, and `curl` honors that even for `localhost`/`127.0.0.1` — the proxy then returns `403 Forbidden` for loopback destinations, making a perfectly healthy backend look dead. `service.sh`'s healthcheck curls always pass `--noproxy '*'`; do the same in any ad-hoc `curl` against localhost on that server, or the check will fail for the wrong reason.
-
-**Maintenance (`backend/maintenance.sh`)**: same subcommand-script pattern as `service.sh` — `./maintenance.sh {backup|restore|rotate-logs|healthcheck}`. `backup` uses SQLite's Online Backup API (safe on a live DB, unlike `cp`) via `python3 -c "..."` calling the stdlib `sqlite3` module's `Connection.backup()` — **not** the `sqlite3` CLI binary. That binary does exist on the production server, at `/infocodes/sqlite3/bin/sqlite3`, but isn't on the default `$PATH`; rather than hardcode that path (or rely on every shell/cron invocation having the right `$PATH`), the script uses `python3`, which is already a hard dependency (`service.sh` uses it to run the app) and whose bundled `sqlite3` module needs no extra package or `$PATH entry. Same reasoning applies to every `PRAGMA integrity_check`/row-count query in this script. Backups go into `/infocodes/var/backups/cso-incident-masivas-report/` (outside the repo tree), keeping the last 7. `rotate-logs` copy-truncates `backend.log` (in `/infocodes/logs/cso-incident-masivas-report/`) without restarting the backend (its append-mode fd survives truncation of the same inode). Cron-driven runs of `maintenance.sh` redirect their own stdout/stderr to `maintenance.log` in that same directory (not `backend.log` — see `MANUAL_OPERADOR.md` for the exact cron lines). `healthcheck` is the single command for "is everything OK" (backend, nginx, disk, DB integrity, log size, backup staleness). Day-2 operator procedures (cron lines, restore walkthrough, troubleshooting) live in `MANUAL_OPERADOR.md`, not here — read that before writing new ops tooling so you don't duplicate it. Note: the actual SQLite table is `reports` (plural, see `models.py`'s `__tablename__`).
+- **`backend/service.sh`**: Supervises the backend process using PID files without requiring systemd or root (`{start|stop|restart|status}`). PID file is stored in `/infocodes/var/run/cso-backend.pid`. Logs are written to `/infocodes/logs/cso-incident-masivas-report/backend.log`.
+- **`backend/maintenance.sh`**: Routines for SQLite Online Backup (`backup`, `restore`), log copy-truncation (`rotate-logs`), and healthchecks (`healthcheck`).
+- **Corporate Proxy**: The server environment sets `http_proxy`/`https_proxy`. Any manual `curl` against `localhost` must include `--noproxy '*'`.
 
 ## Deployment
 
-Full details in `DEPLOYMENT.md` (manual/reference walkthrough) and `STAGING_DEPLOYMENT.md` (the actual staging flow) — read those before changing deploy behavior. Key facts that aren't obvious from a typical FastAPI+Nginx setup:
+Full details in `docs/deployment.md` and `docs/operations.md`.
+- Automated 1-click deployment from Windows:
+  ```powershell
+  .\scripts\deploy-production.ps1
+  ```
+  *(Packages a 1.5 MB standalone tarball, uploads via SCP, creates preventive DB backup, symlinks `releases/<TIMESTAMP>/` -> `current`, reloads Nginx and restarts FastAPI)*.
+- Instant rollback: `./rollback.sh` or `.\scripts\deploy-production.ps1 -Rollback`.
+- Active release inspection: `./status.sh` or `.\scripts\deploy-production.ps1 -VerifyOnly`.
 
-- Everything runs as the unprivileged `infocodes` user (uid=2001, no root, no sudo, no systemd) on `10.132.68.85:8081` / `infocodes.si.orange.es` (host `AOTLXPRBOA00001`). Never add `sudo` back into `deploy.sh` or the docs.
-- 1-click automated deployment from Windows is available via `scripts/deploy-production.ps1` (supports `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SkipBuild`, `-SkipUpload`, `-DryRun`).
-- Nginx is a **self-contained install under `/infocodes/nginx`**, not the OS package: binary at `/infocodes/nginx/sbin/nginx`, main config at `/infocodes/nginx/conf/nginx.conf`, modular site config at `/infocodes/nginx/conf/conf.d/cso-incident.conf`, error log at `/infocodes/nginx/logs/error.log`, access log at `/infocodes/var/log/nginx/infocodes.access.log`. Reload with `/infocodes/nginx/sbin/nginx -c /infocodes/nginx/conf/nginx.conf -s reload` (there is no `nginx` systemd unit to restart).
-- That Nginx instance is modular: `conf/nginx.conf` includes `conf/conf.d/*.conf`. This repository manages `nginx/conf.d/cso-incident.conf` safely without modifying global blocks or impacting sibling apps (`/static`, `/dashboards`, `/data`, `/problemas`, `/api/epsilon/`).
-- Decoupled state under `/infocodes/var/`: SQLite DB (`var/data/cso-incident-masivas-report/reports.db`), executive PPTX files (`var/storage/executive_pptx/`), PID file (`var/run/cso-backend.pid`), and backups (`var/backups/cso-incident-masivas-report/`).
-- App deploy path on the server is `/infocodes/project/cso-incident-masivas-report`, organized in an atomic releases pattern identical to `gestion-problemas-dashboard`:
-  - `current -> releases/<TIMESTAMP>` (atomic symlink to active release)
-  - `releases/<TIMESTAMP>/` (immutable code package: `backend/`, `nginx/`, `app/`)
-  - `shared/` (`venv/` shared virtualenv to avoid wheel reinstalls, and `.env`)
-  - `rollback.sh` (switches `current` back to the previous release in 1 second)
-  - `status.sh` (shows active release and runs `/api/health` probe)
-- `scripts/deploy-production.ps1` automates the whole standalone flow: builds `dist/cso-incident-backend.tar.gz` (1.5 MB, excludes `.git`, dev docs, wheels, tests) → transfers to remote `/tmp/` → creates preventive DB backup → unpacks into new `releases/<TIMESTAMP>/` → symlinks `shared/venv` and `shared/.env` → applies modular `nginx/conf.d/cso-incident.conf` (test and reload) → switches symlink `current` → `current/backend/service.sh restart` → rotates old releases keeping 3 → verifies health probes.
+## Data Model & Business Rules
 
-## Data model notes
-
-Incident fields (`app/app.js` `seed()` / `backend/schemas.py`) map directly to slide content — when adding a field, check both the FastAPI schema/model and the render/export paths in `app.js` (`areaOf()`, `metricsArr()`, `titleOrCat()`, the PPTX/PDF builders) since there's no shared type definition between frontend and backend. Severity is one of `SL1`/`SL2`/`SL3` (colors hardcoded in the `SEV` map in `app.js`); `group` determines whether an incident is bucketed as "IT" or "RED" via a regex on the group name (`areaOf()`), not an explicit field.
-
-`IncidentBase` fields in `schemas.py` should always have defaults (booleans especially — `ministry`/`platform` learned this the hard way). `PUT /api/reports/{id}` (used by the editor's auto-save) validates its `incidents` payload against `IncidentBase` just like create/response do, so a required field with no default there means *any* incident ever saved without it (an old client, a partial CSV import, a schema field added after data already existed) permanently 500s every future `GET` of that report, since `ReportResponse` re-validates on the way out.
-
-Some incident fields hold delimited multi-line text parsed client-side into structured rows — `metrics` (`"label | value"` per line, parsed by `metricsArr()`) and `actionPoints` (`"AP | Tipo de AP | Descripción"` per line, parsed by `actionPointsArr()`), both rendered as small card lists rather than plain paragraphs. `actionPoints` pairs with `solution` the same way `metrics` pairs with `impact`: one column, structured cards then/or free text stacked together under a single header.
-
-`app/report-render.js` is the single source of truth for anything derived from the incident list (aggregate stats or picks), shared by `app.js`, `home.js` and `buildPptxDeck()` so the editor, the dashboard's exports, and the PPTX never disagree — `computeStats()` (totals/severity/marca counts), `weekdayBreakdown()`, `sortIncidents()`/`compareIncidents()`, and `highlightIncident(incidents, area)` (the executive summary's "incidencia más destacada" per IT/RED: highest severity within that area's own scale, tied-broken by duration, then by order of appearance — unless one or more incidents in that area have `featured: true`, in which case the pick is restricted to just those, letting a report author manually pin a specific incident instead of whatever the automatic ranking would choose), and `groupIncidentsForSlides(incidents)` (clusters incidents sharing identical Grupo+Severidad+Categoría onto one shared detail slide instead of one slide each, capped at 3 per slide — blank Categoría never groups, not even with another blank one; overflow beyond 3 spills into further groups in the same single pass over `sortIncidents()`). Add any new incident-derived aggregate here, not inside `app.js`/`home.js` directly.
-
-**`app/home.js` duplicates significant chunks of `app.js`** rather than importing/sharing them — most notably its own copies of `metricsArr()`/`actionPointsArr()`, and entirely separate PDF (`downloadPDF()`, via `html2pdf()`) and PPTX (`downloadPPTX()`, mirroring `exportPPTX()`'s per-incident-slide loop almost line-for-line) builders, used for the "download without opening the editor" buttons on the dashboard. When you touch an incident field's rendering or export logic in `app.js`, grep `home.js` for the same field name too — it's very easy to update one and silently leave the other stale (as already happened once: `home.js`'s `downloadPDF()` never rendered `metrics` at all, unlike its PPTX builder).
-
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan:
-`specs/003-group-incidents-slide/plan.md`
-<!-- SPECKIT END -->
+- `IncidentBase` fields in `backend/schemas.py` **must always have default values** (booleans in particular). `PUT /api/reports/{id}` validates incoming payloads; a required field without default causes HTTP 500 when loading older reports.
+- **Severities**:
+  - **IT**: `SL1`, `SL2`, `SL3` (SL1 if title contains "indisponibilidad", else SL2).
+  - **RED**: `EMERGENCIA` or `CRITICA` (never SL1 or SL2).
+- **Categories**:
+  - **IT**: "Indisponibilidad", "Degradación" or blank.
+  - **RED**: "Pérdida de servicio móvil", "Pérdida de servicio FTTH", "Pérdida de servicio FTTH y móvil" or blank.
+- **Structured Fields**:
+  - `metrics`: Multi-line `"label | value"`.
+  - `actionPoints`: Multi-line `"AP | Tipo de AP | Descripción"`.
+- `featured` boolean: When `true`, pins the incident as the highlighted incident for its area in executive summaries.

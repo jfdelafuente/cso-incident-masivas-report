@@ -1,6 +1,6 @@
 # Backend — Reportes de Incidencias API (FastAPI)
 
-API REST desarrollada con **FastAPI** para la gestión persistente de informes semanales de incidencias IT + RED, generación de presentaciones PowerPoint editables y motor unificado de Informes Ejecutivos para aplicaciones de MASORANGE.
+API REST desarrollada con **FastAPI** para la gestión persistente de informes semanales de incidencias IT + RED, generación de presentaciones PowerPoint editables y motor unificado de Informes Ejecutivos para aplicaciones de ORANGE.
 
 ---
 
@@ -52,6 +52,48 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 - Documentación interactiva Swagger: **http://localhost:8000/docs**
 - Documentación alternativa ReDoc: **http://localhost:8000/redoc**
 
+### 5. Ejecutar la Batería de Tests Unitarios
+
+El backend cuenta con una suite de pruebas automatizadas (in-memory SQLite, sin dependencias externas):
+
+```bash
+python tests/run_all.py
+```
+
+---
+
+## 🏛️ Estructura y Arquitectura Modular
+
+El backend sigue un diseño desacoplado en capas de responsabilidad única:
+
+```
+backend/
+├── main.py              # Punto de entrada ASGI (~55 líneas), compatibilidad de deploy y arranque uvicorn
+├── models.py            # Modelos ORM SQLAlchemy (ReportModel, etc.)
+├── schemas.py           # Esquemas de validación Pydantic v2
+├── core/                # Infraestructura central y configuración
+│   ├── config.py        # Settings centralizados (rutas /infocodes, CORS, BD, variables de entorno)
+│   ├── database.py      # Motor SQLAlchemy, SessionLocal, init_db() y get_db()
+│   └── middleware.py    # Configuración CORS, tiempos de respuesta y trazabilidad (X-Request-ID)
+├── services/            # Lógica de negocio independiente del transporte HTTP
+│   ├── report_service.py      # CRUD de informes semanales y duplicación
+│   ├── legacy_pptx_service.py # Generación de PowerPoint semanal vía scripts/
+│   ├── executive_service.py   # Motor de informes ejecutivos (Jira/Confluence/postmortems)
+│   └── dashboard_service.py   # Conversores CSV y postmortems de releases
+├── api/                 # Capa de transporte y controladores HTTP (FastAPI APIRouters)
+│   ├── router.py        # Agregador central api_router
+│   └── routes/          # Rutas agrupadas por dominio
+│       ├── health.py        # /healthz, /readyz, /api/health
+│       ├── reports.py       # CRUD /api/reports
+│       ├── legacy_pptx.py   # /api/reports/{id}/legacy-pptx
+│       ├── executive.py     # /api/v1/reports/executive-incident
+│       └── dashboard.py     # /api/upload y /api/reports/postmortem
+└── tests/               # Pruebas unitarias
+    ├── run_all.py
+    ├── test_core_and_probes.py
+    └── test_report_service.py
+```
+
 ---
 
 ## 📋 Catálogo de Endpoints
@@ -80,9 +122,10 @@ Servicio utilizado por **Gestión de Problemas** y **Release Dashboard**:
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/api/reports/executive/{incident_ref}` | Genera (o recupera de caché) el PowerPoint ejecutivo a partir de Jira/Confluence. Admite parámetro `async_mode=true` para encolado en segundo plano (devuelve `202 PROCESSING`) |
-| `GET` | `/api/reports/executive/{incident_ref}/status` | Consulta si el informe ya está generado en disco (`READY`), en proceso o no encontrado |
-| `GET` | `/api/reports/executive/{incident_ref}/download` | Descarga directa del archivo PowerPoint ejecutivo generado |
+| `POST` | `/api/v1/reports/executive-incident`<br>*(alias `/api/reports/executive-incident`)* | Genera (o recupera de caché) el PowerPoint ejecutivo a partir de Jira/Confluence. Admite parámetro `async=true` para encolado en segundo plano (devuelve `202 Accepted`) |
+| `GET` | `/api/v1/reports/executive-incident/{incident_ref}/status`<br>*(alias `/api/reports/executive-incident/{incident_ref}/status`)* | Consulta si el informe ya está generado en disco (`READY`), en proceso (`PROCESSING`) o no encontrado |
+| `GET` | `/api/v1/reports/executive-incident/{incident_ref}`<br>*(alias `/api/reports/executive-incident/{incident_ref}`)* | Descarga directa del archivo PowerPoint ejecutivo generado (.pptx) |
+| `POST` | `/api/v1/reports/executive-incident/cleanup` | Purga manual o automática de ficheros antiguos generados en disco |
 
 ### 4. Integración Release Dashboard & Postmortems
 
