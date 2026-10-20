@@ -35,17 +35,18 @@ if [ -d "/infocodes" ]; then
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
     export DATABASE_URL="${DATABASE_URL:-sqlite:////infocodes/var/data/cso-incident-masivas-report/reports.db}"
     export RELEASE_DASHBOARD_ROOT="${RELEASE_DASHBOARD_ROOT:-/infocodes/project/release-dashboard-application/current}"
-    mkdir -p "$PID_DIR" "/infocodes/var/data/cso-incident-masivas-report" "$EXECUTIVE_REPORTS_OUTPUT_DIR"
+    LOG_DIR="${LOG_DIR:-/infocodes/var/log/cso-incident-masivas-report}"
+    mkdir -p "$PID_DIR" "/infocodes/var/data/cso-incident-masivas-report" "$EXECUTIVE_REPORTS_OUTPUT_DIR" "$LOG_DIR"
 else
     PID_DIR="$SCRIPT_DIR"
     PID_FILE="${PID_FILE:-$LEGACY_PID_FILE}"
     export EXECUTIVE_REPORTS_OUTPUT_DIR="${EXECUTIVE_REPORTS_OUTPUT_DIR:-${EXECUTIVE_REPORTS_DIR:-$LOCAL_REPORTS_DIR}}"
     export EXECUTIVE_REPORTS_DIR="$EXECUTIVE_REPORTS_OUTPUT_DIR"
     export RELEASE_DASHBOARD_ROOT="${RELEASE_DASHBOARD_ROOT:-$SCRIPT_DIR/../../release-dashboard-application}"
+    LOG_DIR="${LOG_DIR:-$SCRIPT_DIR/logs}"
+    mkdir -p "$LOG_DIR"
 fi
-LOG_DIR="${LOG_DIR:-/infocodes/logs/cso-incident-masivas-report}"
 LOG_FILE="$LOG_DIR/backend.log"
-mkdir -p "$LOG_DIR"
 HEALTH_URL="http://localhost:$PORT/api/health"
 PYTHON_BIN="$SCRIPT_DIR/venv/bin/python3"
 HEALTH_RETRIES=15

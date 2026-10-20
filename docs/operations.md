@@ -19,7 +19,7 @@ Guía para **operar, monitorizar y mantener** el servicio en producción en el s
 | Almacén PPTX Ejecutivos | `/infocodes/var/storage/executive_pptx/` |
 | Archivo de PID | `/infocodes/var/run/cso-backend.pid` |
 | Backups automáticos | `/infocodes/var/backups/cso-incident-masivas-report/` |
-| Directorio de Logs | `/infocodes/logs/cso-incident-masivas-report/` |
+| Directorio de Logs | `/infocodes/var/log/cso-incident-masivas-report/` |
 
 ---
 
@@ -38,7 +38,7 @@ cd /infocodes/project/cso-incident-masivas-report/current/backend
 
 - **Log en vivo**:
   ```bash
-  tail -f /infocodes/logs/cso-incident-masivas-report/backend.log
+  tail -f /infocodes/var/log/cso-incident-masivas-report/backend.log
   ```
 - **Sondas de verificación manual**:
   ```bash
@@ -71,10 +71,10 @@ cd /infocodes/project/cso-incident-masivas-report/current/backend
 ### Configuración en Crontab (usuario `infocodes`):
 ```cron
 # Backup diario a las 02:00 manteniendo los últimos 7
-0 2 * * * /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh backup >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
+0 2 * * * /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh backup >> /infocodes/var/log/cso-incident-masivas-report/maintenance.log 2>&1
 
 # Rotación semanal de logs los domingos a las 03:00
-0 3 * * 0 /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh rotate-logs >> /infocodes/logs/cso-incident-masivas-report/maintenance.log 2>&1
+0 3 * * 0 /infocodes/project/cso-incident-masivas-report/current/backend/maintenance.sh rotate-logs >> /infocodes/var/log/cso-incident-masivas-report/maintenance.log 2>&1
 ```
 
 ---
@@ -88,7 +88,7 @@ cd /infocodes/project/cso-incident-masivas-report/current/backend
    ```
 2. Si está caído, revisa las últimas líneas del log:
    ```bash
-   tail -n 60 /infocodes/logs/cso-incident-masivas-report/backend.log
+   tail -n 60 /infocodes/var/log/cso-incident-masivas-report/backend.log
    /infocodes/project/cso-incident-masivas-report/current/backend/service.sh start
    ```
 

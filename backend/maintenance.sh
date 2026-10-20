@@ -50,11 +50,12 @@ if [ -d "/infocodes" ]; then
         DB_FILE="${DATABASE_FILE:-$PROD_DB}"
     fi
     BACKUP_DIR="${BACKUP_DIR:-/infocodes/var/backups/cso-incident-masivas-report}"
+    LOG_DIR="${LOG_DIR:-/infocodes/var/log/cso-incident-masivas-report}"
 else
     DB_FILE="${DATABASE_FILE:-$SCRIPT_DIR/reports.db}"
     BACKUP_DIR="${BACKUP_DIR:-$SCRIPT_DIR/backups}"
+    LOG_DIR="${LOG_DIR:-$SCRIPT_DIR/logs}"
 fi
-LOG_DIR="${LOG_DIR:-/infocodes/logs/cso-incident-masivas-report}"
 LOG_FILE="$LOG_DIR/backend.log"
 
 BACKUP_RETENTION=7

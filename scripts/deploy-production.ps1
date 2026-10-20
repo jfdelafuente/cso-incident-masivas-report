@@ -337,6 +337,7 @@ VAR_DATA_DIR="/infocodes/var/data/cso-incident-masivas-report"
 VAR_STORAGE_DIR="/infocodes/var/storage/executive_pptx"
 VAR_RUN_DIR="/infocodes/var/run"
 VAR_BACKUP_DIR="/infocodes/var/backups/cso-incident-masivas-report"
+VAR_LOG_DIR="/infocodes/var/log/cso-incident-masivas-report"
 RELEASES_DIR="`$REMOTE_DIR/releases"
 SHARED_DIR="`$REMOTE_DIR/shared"
 CURRENT_LINK="`$REMOTE_DIR/current"
@@ -345,7 +346,7 @@ NGINX_BIN="/infocodes/nginx/sbin/nginx"
 NGINX_CONF="/infocodes/nginx/conf/nginx.conf"
 
 echo "--> [Remoto] Asegurando directorios persistentes en /infocodes/var/ y structure de releases..."
-mkdir -p "`$VAR_DATA_DIR" "`$VAR_STORAGE_DIR" "`$VAR_RUN_DIR" "`$VAR_BACKUP_DIR" "`$RELEASES_DIR" "`$SHARED_DIR"
+mkdir -p "`$VAR_DATA_DIR" "`$VAR_STORAGE_DIR" "`$VAR_RUN_DIR" "`$VAR_BACKUP_DIR" "`$VAR_LOG_DIR" "`$RELEASES_DIR" "`$SHARED_DIR"
 
 # Unificación de almacenamiento con release-dashboard-application
 RD_EXEC_DIR="/infocodes/project/release-dashboard-application/shared/data/reports/executive"
@@ -353,6 +354,15 @@ if [ -d "`$RD_EXEC_DIR" ] && [ ! -L "`$RD_EXEC_DIR" ]; then
     echo "--> [Remoto] Sustituyendo directorio legado de release-dashboard por symlink a `$VAR_STORAGE_DIR..."
     rm -rf "`$RD_EXEC_DIR"
     ln -sfn "`$VAR_STORAGE_DIR" "`$RD_EXEC_DIR"
+fi
+
+# Unificación de logs hacia /infocodes/var/log/
+OLD_LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+if [ -d "`$OLD_LOG_DIR" ] && [ ! -L "`$OLD_LOG_DIR" ]; then
+    echo "--> [Remoto] Migrando logs desde `$OLD_LOG_DIR hacia `$VAR_LOG_DIR..."
+    cp -rn "`$OLD_LOG_DIR"/* "`$VAR_LOG_DIR/" 2>/dev/null || true
+    rm -rf "`$OLD_LOG_DIR"
+    ln -sfn "`$VAR_LOG_DIR" "`$OLD_LOG_DIR"
 fi
 
 if [ ! -f "`$TMP_TAR" ]; then

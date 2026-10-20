@@ -16,7 +16,7 @@ DEPLOY_PATH="/infocodes/project/cso-incident-masivas-report"
 REPO_URL="https://github.com/jfdelafuente/cso-incident-masivas-report.git"
 BACKEND_PORT=8000
 FRONTEND_PATH="$DEPLOY_PATH/app"
-LOG_DIR="/infocodes/logs/cso-incident-masivas-report"
+LOG_DIR="/infocodes/var/log/cso-incident-masivas-report"
 
 # 0. Backup preventivo de base de datos
 # Si ya existe una instalación previa con datos, se realiza un backup

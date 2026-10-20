@@ -160,7 +160,7 @@ En el entorno de producción (`/infocodes`), el backend opera de forma **statele
 4. **Copias de Seguridad**:
    - Ruta: `/infocodes/var/backups/cso-incident-masivas-report/`
 5. **Logs de Aplicación**:
-   - Ruta: `/infocodes/logs/cso-incident-masivas-report/backend.log`
+   - Ruta: `/infocodes/var/log/cso-incident-masivas-report/backend.log`
 
 ---
 

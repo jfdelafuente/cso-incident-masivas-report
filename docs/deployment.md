@@ -58,7 +58,7 @@ El despliegue en producción utiliza una arquitectura basada en **artefactos sta
                 │  - PPTX Storage: var/storage/executive_pptx/ (compartido)        │
                 │  - PID File: var/run/cso-backend.pid                             │
                 │  - Backups: var/backups/cso-incident-masivas-report/             │
-                │  - Logs: /infocodes/logs/cso-incident-masivas-report/            │
+                │  - Logs: var/log/cso-incident-masivas-report/                    │
                 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -138,5 +138,5 @@ cd /infocodes/project/cso-incident-masivas-report
 ### 3. Persistencia y Logs
 - [ ] Base de datos accesible en `/infocodes/var/data/cso-incident-masivas-report/reports.db`.
 - [ ] Backup preventivo registrado en `/infocodes/var/backups/cso-incident-masivas-report/`.
-- [ ] Log sin errores críticos en `/infocodes/logs/cso-incident-masivas-report/backend.log`.
+- [ ] Log sin errores críticos en `/infocodes/var/log/cso-incident-masivas-report/backend.log`.
 

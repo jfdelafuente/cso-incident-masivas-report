@@ -55,7 +55,7 @@ There is no automated test suite and no lint/format tooling in this repo — do 
 
 ## Process Management & Maintenance
 
-- **`backend/service.sh`**: Supervises the backend process using PID files without requiring systemd or root (`{start|stop|restart|status}`). PID file is stored in `/infocodes/var/run/cso-backend.pid`. Logs are written to `/infocodes/logs/cso-incident-masivas-report/backend.log`.
+- **`backend/service.sh`**: Supervises the backend process using PID files without requiring systemd or root (`{start|stop|restart|status}`). PID file is stored in `/infocodes/var/run/cso-backend.pid`. Logs are written to `/infocodes/var/log/cso-incident-masivas-report/backend.log`.
 - **`backend/maintenance.sh`**: Routines for SQLite Online Backup (`backup`, `restore`), log copy-truncation (`rotate-logs`), and healthchecks (`healthcheck`).
 - **Corporate Proxy**: The server environment sets `http_proxy`/`https_proxy`. Any manual `curl` against `localhost` must include `--noproxy '*'`.
 

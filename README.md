@@ -112,4 +112,4 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
   - Informes Ejecutivos PPTX: `/infocodes/var/storage/executive_pptx/`
   - PID del servicio: `/infocodes/var/run/cso-backend.pid`
   - Backups de base de datos: `/infocodes/var/backups/cso-incident-masivas-report/`
-  - Logs: `/infocodes/logs/cso-incident-masivas-report/backend.log`
+  - Logs: `/infocodes/var/log/cso-incident-masivas-report/backend.log`
