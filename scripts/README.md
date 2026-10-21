@@ -136,7 +136,7 @@ python scripts/export_legacy_pptx.py reporte.json \
 
 - `-o`, `--output`: Ruta del fichero `.pptx` generado. Si se omite, se deduce del año y semana del JSON.
 - `-t`, `--template`: Ruta a una plantilla PPTX personalizada. Por defecto busca automáticamente `scripts/legacy_template.pptx` o `2026W39_ReporteIncidencias.pptx`.
-- `-l`, `--logo`: Ruta al archivo del logo corporativo (SVG o PNG). Por defecto utiliza automáticamente `app/assets/orange-logo.png`.
+- `-l`, `--logo`: Ruta al archivo del logo corporativo (SVG o PNG). Por defecto utiliza automáticamente `backend/report_generator/assets/orange-logo.png` o `scripts/orange-logo.png`.
 - `--cards-per-slide`: Número máximo de tarjetas por diapositiva (por defecto `2`). Si un grupo tiene exactamente 3 incidencias, el script las organiza automáticamente en una sola diapositiva con el diseño de 3 slots idéntico al PPT de referencia.
 - `-q`, `--quiet`: Suprime mensajes informativos por pantalla.
 

@@ -368,6 +368,7 @@ def find_logo_image(custom_logo=None):
     repo_root = script_dir.parent
 
     candidates.extend([
+        repo_root / "backend" / "report_generator" / "assets" / "orange-logo.png",
         repo_root / "app" / "assets" / "orange-logo.png",
         script_dir / "orange-logo.png",
         repo_root / "app" / "assets" / "orange-logo.svg",
@@ -392,7 +393,7 @@ def apply_corporate_logo(prs, logo_path=None):
         if png_sibling.is_file():
             logo_file = png_sibling
         else:
-            repo_png = Path(__file__).resolve().parent.parent / "app" / "assets" / "orange-logo.png"
+            repo_png = Path(__file__).resolve().parent.parent / "backend" / "report_generator" / "assets" / "orange-logo.png"
             if repo_png.is_file():
                 logo_file = repo_png
             else:
@@ -445,11 +446,15 @@ def sanitize_branding_text(prs):
     """Reemplaza cualquier mención residual de 'MasOrange' por 'Orange' en patrones y diapositivas."""
     for m in prs.slide_masters:
         for s in m.shapes:
+            if "masorange" in s.name.lower():
+                s.name = re.sub(r"(?i)masorange", "Orange", s.name)
             if s.has_text_frame and "masorange" in s.text_frame.text.lower():
                 for p in s.text_frame.paragraphs:
                     p.text = re.sub(r"(?i)masorange", "Orange", p.text)
     for slide in prs.slides:
         for s in slide.shapes:
+            if "masorange" in s.name.lower():
+                s.name = re.sub(r"(?i)masorange", "Orange", s.name)
             if s.has_text_frame and "masorange" in s.text_frame.text.lower():
                 for p in s.text_frame.paragraphs:
                     p.text = re.sub(r"(?i)masorange", "Orange", p.text)
