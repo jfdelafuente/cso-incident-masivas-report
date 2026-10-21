@@ -9,6 +9,7 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
 ## 📋 Funcionalidades Principales del Módulo
 
 ### 1. Gestión Integral de Reportes Semanales (IT + RED)
+
 - **Control temporal por semanas**: Gestión de reportes identificados unívocamente por clave `YYYY-WXX` (ej. `2026-W42`), con ciclo de vida completo (`draft`, `reviewed`, `published`).
 - **Modelo de datos especializado por área**:
   - **Incidencias IT**: Severidades `SL1`, `SL2`, `SL3` y categorización en *Indisponibilidad* o *Degradación*.
@@ -17,6 +18,7 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
 - **Flags de criticidad**: Detección de avisos al Ministerio, afectación a plataformas transversales, origen externo y selección manual o automática de *incidencia destacada* (`featured`).
 
 ### 2. Generación Automatizada de Presentaciones (PPTX y PDF)
+
 - **Exportación PowerPoint corporativa**: Genera presentaciones `.pptx` editables 100% fieles a la plantilla oficial de ORANGE (`legacy_template.pptx`) mediante `python-pptx` en backend (`export_legacy_pptx.py`).
 - **Agrupación inteligente de diapositivas**:
   - Clustered slides: Agrupa incidencias que comparten mismo Grupo + Severidad + Categoría (hasta 3 incidencias por diapositiva para optimizar el espacio).
@@ -25,11 +27,13 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
 - **Exportación en cliente**: Generación de vistas web interactivas, exportación a PDF y PPTX cliente mediante `pptxgenjs`.
 
 ### 3. Motor Autónomo de Informes Ejecutivos Postmortem (`report_generator/`)
+
 - **Parser de Confluence y Jira**: Extrae y normaliza descripciones en formato wiki markup/HTML de Confluence, cronología de eventos, árboles de causas y tablas de puntos de acción.
 - **Generador de PPTX ejecutivo**: Produce presentaciones ejecutivas de alto impacto visual orientadas a comités de dirección para incidencias postmortem individuales.
 - **Modo asíncrono y caché**: Soporta generación en segundo plano (`asyncMode=True` -> HTTP `202 Accepted` con sondeo de estado `/status`), almacenamiento persistente en disco desacoplado y limpieza/rotación automática programada.
 
 ### 4. Herramientas CLI de Ingesta e Inferencia Inteligente (`scripts/`)
+
 - **Importador desde PowerPoint (`import_pptx.py`)**: Ingiere presentaciones `.pptx` existentes o recibidas por correo, extrayendo textos, tarjetas de incidencias, fechas y datos técnicos en formato JSON listo para la base de datos.
 - **Reglas de inferencia automática**:
   - **IT**: Infiere severidad `SL1` si el título indica indisponibilidad (de lo contrario `SL2`) y categoría *Indisponibilidad* o *Degradación*.
@@ -37,11 +41,13 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
 - **Inspección de plantillas (`dump_pptx_shapes.py`)**: Analiza la jerarquía de formas y coordenadas de nuevas plantillas PowerPoint.
 
 ### 5. Integración con el Ecosistema del Portal ORANGE
+
 - **Frontend centralizado**: La interfaz web oficial reside en el portal hub unificado `release-dashboard-application` bajo `/dashboards/reportes-incidencias/` con cabecera y navegación corporativa única.
 - **Servicio a Gestión de Problemas (`/problemas`)**: Proporciona endpoints para solicitar y descargar informes ejecutivos postmortem en PPTX.
 - **Servicio a Release Dashboard (`/dashboards`)**: Endpoints de subida de ficheros CSV (`/api/upload`) y generación por lotes de postmortems de releases.
 
 ### 6. Operaciones, Observabilidad y Alta Disponibilidad
+
 - **Despliegue atómico con cero cortes**: Orquestador PowerShell `deploy-production.ps1` que empaqueta un artefacto standalone de 1.5 MB y gestiona releases inmutables por symlink (`releases/<TIMESTAMP>/` -> `current`).
 - **Rollback en 1 segundo**: Script `rollback.sh` para revertir de inmediato a la release previa.
 - **Supervisión sin root ni systemd**: Script `service.sh` para gestión de procesos FastAPI vía PID en el usuario `infocodes`.
@@ -61,9 +67,11 @@ Además, actúa como **Single Source of Truth (SSOT)** y motor autónomo para la
 ## 📦 Despliegue y Operación
 
 - **Despliegue 1-Clic desde Windows (Recomendado)**:
+
   ```powershell
   .\scripts\deploy-production.ps1
   ```
+
   *(Empaqueta un artefacto standalone inmutable de 1.5 MB, lo despliega en `releases/<TIMESTAMP>/` y activa el symlink atómico `current`)*.
   *(Soporta `-VerifyOnly`, `-RestartOnly`, `-Rollback`, `-SkipBuild`, `-SkipUpload` y `-DryRun`)*.
 - **Operación y Verificación en el Servidor**:
