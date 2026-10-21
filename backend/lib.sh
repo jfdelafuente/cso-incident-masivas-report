@@ -1,4 +1,4 @@
-# Colores y helpers de logging compartidos por deploy.sh, service.sh y
+# Colores y helpers de logging compartidos por service.sh y
 # maintenance.sh. Este fichero se source-ea, no se ejecuta directamente.
 
 if [ -t 1 ]; then
